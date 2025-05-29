@@ -2,15 +2,14 @@ import json
 import argparse
 import os
 import re
-from config import CONFIG
 
 import utils.ol as ol
 from parseMisc import parse_extraeffect
 from utils.files import write_file
 from utils.misc import autoround, convertwhole, copy_icon
 from utils.pageinfo import pageinfo
+from getConfig import CONFIG
 
-IMAGE_PATH = f'{CONFIG["ImgPath"]}/assets/asbres/'
 BUFFED_PREFIX = 'buffed_'
 
 parser = argparse.ArgumentParser()
@@ -40,7 +39,7 @@ ol.load_data()
 
 
 def parseSkill(id, ver):
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarSkillConfig.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarSkillConfig.json', 'r', encoding='utf-8') as file:
         avatarskillconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     levels = len(avatarskillconfig[id])
@@ -152,7 +151,7 @@ def parseSkill(id, ver):
 
 
 def parseTrace(id, ver):
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarSkillTreeConfig-Mapped.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarSkillTreeConfig-Mapped.json', 'r', encoding='utf-8') as file:
         skilltreeconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     name = skilltreeconfig[id]['1']['PointName']
@@ -196,7 +195,7 @@ def parseTrace(id, ver):
     return(page_content)
 
 def parseEidolon(id, ver):
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarRankConfig-Mapped.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarRankConfig-Mapped.json', 'r', encoding='utf-8') as file:
         rankconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     name = rankconfig[id]['Name']
@@ -261,7 +260,7 @@ def parseEidolon(id, ver):
 
 
 def parseServantSkill(id, ver):
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarServantSkillConfig.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarServantSkillConfig.json', 'r', encoding='utf-8') as file:
         servantskillconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     levels = len(servantskillconfig[id])
@@ -349,7 +348,7 @@ def parseServantSkill(id, ver):
 
 
 def parseGlobal(id, ver):
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarGlobalBuffConfig.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarGlobalBuffConfig.json', 'r', encoding='utf-8') as file:
         avatarglobalconfig = json.load(file)
     
     if not avatarglobalconfig.get(id):
@@ -425,21 +424,21 @@ def parseGlobal(id, ver):
     return(page_content)
 
 
-with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarConfig.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarConfig.json', 'r', encoding='utf-8') as file:
     avatarconfig = json.load(file)
         
 if not char_id == "None":
     character = avatarconfig[char_id]['AvatarName']['TextMapEN']
 
-    if not os.path.exists(f'{CONFIG["OutputPath"]}/{character}/Abilities'):
-        os.makedirs(f'{CONFIG["OutputPath"]}/{character}/Abilities')
-    if not os.path.exists(f'{CONFIG["OutputPath"]}/{character}/Traces'):
-        os.makedirs(f'{CONFIG["OutputPath"]}/{character}/Traces')
-    if not os.path.exists(f'{CONFIG["OutputPath"]}/{character}/Eidolons'):
-        os.makedirs(f'{CONFIG["OutputPath"]}/{character}/Eidolons')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/{character}/Abilities'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}/{character}/Abilities')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/{character}/Traces'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}/{character}/Traces')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/{character}/Eidolons'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}/{character}/Eidolons')
 
     for ability in ability_list:
-        file_write_path = f'{CONFIG["OutputPath"]}/{character}/Abilities/{ability[1]}.wikitext'
+        file_write_path = f'{CONFIG.OUTPUT_PATH}/{character}/Abilities/{ability[1]}.wikitext'
         id = f'{char_id}{ability[0]}'
         if args.enhanced:
             id = f'1{id}'
@@ -451,7 +450,7 @@ if not char_id == "None":
             print(f'Skipped {id}. ({err})')
         
     for trace in trace_list:
-        file_write_path = f'{CONFIG["OutputPath"]}/{character}/Traces/{trace[1]}.wikitext'
+        file_write_path = f'{CONFIG.OUTPUT_PATH}/{character}/Traces/{trace[1]}.wikitext'
         id = f'{char_id}{trace[0]}'
         if args.enhanced:
             id = f'1{id}'
@@ -461,7 +460,7 @@ if not char_id == "None":
             write_file(file_write_path, write)
         
     for eidolon in eidolon_list:
-        file_write_path = f'{CONFIG["OutputPath"]}/{character}/Eidolons/{eidolon[1]}.wikitext'
+        file_write_path = f'{CONFIG.OUTPUT_PATH}/{character}/Eidolons/{eidolon[1]}.wikitext'
         id = f'{char_id}{eidolon[0]}'
         if args.enhanced:
             id = f'1{id}'
@@ -471,7 +470,7 @@ if not char_id == "None":
             write_file(file_write_path, write)
     
     # global passive
-    global_file_write_path = f'{CONFIG["OutputPath"]}/{character}/Abilities/Global Passive.wikitext'
+    global_file_write_path = f'{CONFIG.OUTPUT_PATH}/{character}/Abilities/Global Passive.wikitext'
     global_content = parseGlobal(char_id, ver)
     if global_content:
         write_file(global_file_write_path, global_content)
@@ -482,14 +481,14 @@ if not char_id == "None":
         
         servant_id = f'1{char_id}'
         
-        with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/AvatarServantConfig.json', 'r', encoding='utf-8') as file:
+        with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarServantConfig.json', 'r', encoding='utf-8') as file:
             servantconfig = json.load(file)
 
         servant = servantconfig[servant_id]
         servant_skills = [str(servant_skill) for servant_skill in servant['SkillIDList']]
         
         for servant_skill in servant_skills:
-            file_write_path = f'{CONFIG["OutputPath"]}/{character}/Abilities/Servant {servant_skill}.wikitext'
+            file_write_path = f'{CONFIG.OUTPUT_PATH}/{character}/Abilities/Servant {servant_skill}.wikitext'
             write_file(file_write_path, parseServantSkill(servant_skill, ver))
         
         
