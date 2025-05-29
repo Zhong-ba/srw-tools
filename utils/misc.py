@@ -51,6 +51,34 @@ def dict_to_template(dictionary, template):
     out = f'{{{{{template}\n{out}}}}}'
 
     return out
+
+
+def fix_str(str_input):
+    return str_input.replace('"', r'\"')
+
+
+def dict_to_table(python_dict, indent = 0):
+    indent_str = '\t' * indent
+    lua_table = "{\n"
+    
+    for key, value in python_dict.items():
+        lua_key = f'{indent_str}\t["{fix_str(key)}"]'
+        
+        if isinstance(value, str):
+            lua_value = f'"{fix_str(value)}"'
+        elif isinstance(value, dict):
+            lua_value = dict_to_table(value, indent + 1)
+        elif isinstance(value, list):
+            list_values = ", ".join([f'"{fix_str(item)}"' if isinstance(item, str) else str(item) for item in value])
+            lua_value = "{" + list_values + "}"
+        else:
+            lua_value = str(value)
+            
+        lua_table += f"{lua_key} = {lua_value},\n"
+        
+    lua_table += f"{indent_str}}}"
+
+    return lua_table
     
 
 def parse_extraeffect(desc, idlist):
@@ -136,3 +164,21 @@ def parse_mazebuff(id):
         
     
     return name, parse_params(desc, params)
+
+
+def parse_monster_text(monster_list):
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+        monsterjson = json.load(file)
+
+    monster_text = ''
+    monster_index = 0
+    for monster in monster_list:
+        monster_id = str(monster)
+        monster_name = monsterjson[monster_id]['MonsterName']['TextMapEN']
+        if monster_index == 0:
+            monster_text = monster_text + monster_name
+        else:
+            monster_text = monster_text + f',{monster_name}'
+        monster_index = monster_index + 1
+
+    return monster_text
