@@ -6,13 +6,25 @@ langs = []
 data = {}
 
 
-def load_data():
+def print_progress_bar(iteration, total, length = 50):
+    percent = f"{100 * (iteration / float(total)):.1f}"
+    filled_length = int(length * iteration // total)
+    bar = '█' * filled_length + '-' * (length - filled_length)
+    print(f'\rLoading OL: |{bar}| {percent}%', end='\r')
+    if iteration == total: 
+        print()
+        
+
+def load_data(progress_callback = None):
     global langs, data
     langs = ['CHS','CHT','DE','EN','ES','FR','ID','JP','KR','PT','RU','TH','VI']
     data = {}
-    for lang in langs:
+    for index, lang in enumerate(langs):
         with open(f'{CONFIG.DATA_PATH}/TextMap/TextMap{lang}.json', 'r', encoding='utf-8') as file:
             data[lang] = json.load(file)
+        if progress_callback:
+            progress_callback(index + 1, len(langs))
+        print_progress_bar(index + 1, len(langs))
 
 
 def gen_ol(text):

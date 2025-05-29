@@ -1,7 +1,7 @@
 import json
 # import ctypes
 import xxhash
-from config import CONFIG
+from getConfig import CONFIG
 
 JSON_NAMES = [
     'AvatarSkillTreeConfig',
@@ -25,7 +25,7 @@ def get_stable_hash(str: str):
     return ctypes.c_int32(hash1 + (hash2 * 1566083941)).value
 """
 
-with open(f'{CONFIG["DataPath"]}/TextMap/TextMapEN.json', encoding='utf-8') as f:
+with open(f'{CONFIG.DATA_PATH}/TextMap/TextMapEN.json', encoding='utf-8') as f:
     hash_dict = json.load(f)
 
 def replace_hashes(obj):
@@ -46,12 +46,12 @@ def replace_hashes(obj):
             
             
 for JSON_NAME in JSON_NAMES:
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/{JSON_NAME}.json', encoding='utf-8') as f:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/{JSON_NAME}.json', encoding='utf-8') as f:
         input_data = json.load(f)
         
     replace_hashes(input_data)
     
-    with open(f'{CONFIG["DataPath"]}/MappedExcelOutput_EN/{JSON_NAME}-Mapped.json', 'w', encoding='utf-8') as f:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/{JSON_NAME}-Mapped.json', 'w', encoding='utf-8') as f:
         json.dump(input_data, f, indent=2, ensure_ascii=False)
         
     print(f'{JSON_NAME} done.')
