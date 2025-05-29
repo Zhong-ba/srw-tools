@@ -2,14 +2,13 @@ import json
 import argparse
 import re
 import os
-import shutil
-from config import CONFIG
-from parseMisc import parse_extraeffect
 
-IMAGE_PATH = f'{CONFIG["ImgPath"]}/assets/asbres/'
-EXCEL_PATH = f'{CONFIG["DataPath"]}/MappedExcelOutput_EN'
-OLD_PATH = f'{CONFIG["DataPathOld"]}/MappedExcelOutput_EN'
-OUT_PATH = CONFIG["OutputPath"]
+from parseMisc import parse_extraeffect
+from utils.files import write_file
+from utils.misc import autoround, copy_icon
+from utils.pageinfo import pageinfo
+import utils.ol as ol
+from getConfig import CONFIG
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--id', type=int)
@@ -24,109 +23,22 @@ id_list: list = args.ids or []
 ver = str(args.ver)
 files = args.files
 
-
-def copy_file(source_path, destination_path):
-    if os.path.exists(source_path):
-        shutil.copy(source_path, destination_path)
-        print(f"File copied successfully from {source_path} to {destination_path}")
-    else:
-        print(f"The file {source_path} does not exist.")
-        
-        
-def write_file(file_write_path, file_write):
-    if os.path.exists(file_write_path):
-        print(f'The file {file_write_path} already exists. Skipping.')
-        return
-    
-    with open(file_write_path, 'w', encoding='utf-8') as file:
-        file.write(file_write)
-        print('Saved to ' + file_write_path + '.')    
+ol.load_data()
 
 
-def file_redirect(target, source):
-    if not os.path.exists(f'{OUT_PATH}/Redirects'):
-            os.makedirs(f'{OUT_PATH}/Redirects')
-    
-    file_write_path = f'{OUT_PATH}/Redirects/{source}.wikitext'
-    file_write = f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some important information of edit. This struct will be removed automatically after you push edits.#\n    pageTitle = #File:{target}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    contentFormat = ##\n[END_PAGE_INFO] --%>\n\n#REDIRECT [[File:{source}]]\n[[Category:Redirect Pages]]"
-    
-    write_file(file_write_path, file_write)
-    
-
-def copy_icon(source, name, folder):
-    file_name_clean = name.replace(":", "").replace("/", "").replace("\"", "")
-    
-    if file_name_clean != name:
-        file_redirect(name, file_name_clean)
-        
-    src = IMAGE_PATH + source.lower()
-    
-    dest = f'{OUT_PATH}/Images/{folder}/{file_name_clean}'
-    
-    if not os.path.exists(f'{OUT_PATH}/Images/{folder}'):
-            os.makedirs(f'{OUT_PATH}/Images/{folder}')
-    
-    copy_file(src, dest)
-        
-
-def autoround(value):
-    s_value = str(value)
-
-    patterns = ['999', '998', '000', '001']
-
-    for pattern in patterns:
-        position = s_value.find(pattern)
-        if position != -1:
-            # Position of the pattern minus position of the dot gives the number of decimal places
-            return round(value, position - s_value.find('.'))
-
-    return value
-
-
-def convertwhole(value):
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    else:
-        return value
-    
-
-langs = ['CHS','CHT','DE','EN','ES','FR','ID','JP','KR','PT','RU','TH','VI']
-data = {}
-for lang in langs:
-    with open(f'{CONFIG["DataPath"]}/TextMap/TextMap{lang}.json', 'r', encoding='utf-8') as file:
-        data[lang] = json.load(file)
-
-
-def genOL(text):        
-    textdata = {}
-    textId_list = []
-        
-    for item in data['EN']:
-        if (data['EN'][item]) == text:
-            textId_list.append(item)
-    textId = textId_list[0]
-    
-    for lang in langs:
-        textdata[lang] = data[lang].get(textId, '')
-        
-    output = f"{{{{Other Languages\n|en   = {text}\n|zhs  = {textdata['CHS']}\n|zht  = {textdata['CHT']}\n|ja   = {textdata['JP']}\n|ko   = {textdata['KR']}\n|es   = {textdata['ES']}\n|fr   = {textdata['FR']}\n|ru   = {textdata['RU']}\n|th   = {textdata['TH']}\n|vi   = {textdata['VI']}\n|de   = {textdata['DE']}\n|id   = {textdata['ID']}\n|pt   = {textdata['PT']}\n}}}}\n"
-    
-    return output
-
-
-with open(f'{EXCEL_PATH}/MonsterConfig.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding='utf-8') as file:
     monsterconfig = json.load(file)
     
-with open(f'{OLD_PATH}/MonsterConfig.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.EXCEL_PATH_OLD}/MonsterConfig.json', 'r', encoding='utf-8') as file:
     monsterconfig_old = json.load(file)
     
-with open(f'{EXCEL_PATH}/MonsterTemplateConfig.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.EXCEL_PATH}/MonsterTemplateConfig.json', 'r', encoding='utf-8') as file:
     monstertemplateconfig = json.load(file)
     
-with open(f'{EXCEL_PATH}/MonsterSkillConfig.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.EXCEL_PATH}/MonsterSkillConfig.json', 'r', encoding='utf-8') as file:
     monsterskillconfig = json.load(file)
 
-with open(f'{EXCEL_PATH}/MonsterCamp.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.EXCEL_PATH}/MonsterCamp.json', 'r', encoding='utf-8') as file:
     monstercamp = json.load(file)
 
 
@@ -326,9 +238,9 @@ def parseMonster(id, ver):
         camp_name = ''
         camp_link = ''
     
-    OLtext = genOL(name)
+    OLtext = ol.gen_ol(name)
     
-    page_content = f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some important information of edit. This struct will be removed automatically after you push edits.#\n    pageTitle = #{name}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    contentFormat = ##\n[END_PAGE_INFO] --%>\n\n{{{{Enemy Infobox\n|image    = Enemy {filename}.png\n|tier     = {tier}\n|type     = {type_text}\n|weakness = {weak_text}\n|tough    = {stance}\n|faction  = {camp_name}\n|location = \n}}}}\n'''{name}''' is a [[{tier} Enemy]] part of the [[{camp_link}]] faction.\n\n==Enemy Info==\n{{{{Description|{intro}}}}}\n\n==Stats==\n{{{{Enemy Stats\n{damage_res_text}\n{debuff_res_text}\n{atk_text}{def_text}{hp_text}{spd_text}{eres_text}}}}}\n\n==Skills==\n{{{{Enemy Skills{skill_text}}}}}\n\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Enemy Navbox|{tier}}}}}\n"
+    page_content = f"{pageinfo(name)}\n{{{{Enemy Infobox\n|image    = Enemy {filename}.png\n|tier     = {tier}\n|type     = {type_text}\n|weakness = {weak_text}\n|tough    = {stance}\n|faction  = {camp_name}\n|location = \n}}}}\n'''{name}''' is a [[{tier} Enemy]] part of the [[{camp_link}]] faction.\n\n==Enemy Info==\n{{{{Description|{intro}}}}}\n\n==Stats==\n{{{{Enemy Stats\n{damage_res_text}\n{debuff_res_text}\n{atk_text}{def_text}{hp_text}{spd_text}{eres_text}}}}}\n\n==Skills==\n{{{{Enemy Skills{skill_text}}}}}\n\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Enemy Navbox|{tier}}}}}\n"
 
     return([page_content, name])
 
@@ -336,13 +248,13 @@ def parseMonster(id, ver):
 def output_mons(id):
     output = parseMonster(id, ver)
 
-    if not os.path.exists(f'{OUT_PATH}/Monsters'):
-        os.makedirs(f'{OUT_PATH}/Monsters')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/Monsters'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}/Monsters')
 
     file_name = output[1].replace(' ', '_').replace(':', '').replace('"', '')
-    file_write_path = f'{OUT_PATH}/Monsters/{file_name}.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Monsters/{file_name}.wikitext'
 
-    write_file(file_write_path, output[0])
+    write_file(file_write_path, output[0], overwrite = False)
 
 
 if mons_id:

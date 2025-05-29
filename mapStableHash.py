@@ -1,5 +1,5 @@
 import json
-import ctypes
+# import ctypes
 import xxhash
 from config import CONFIG
 
