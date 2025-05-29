@@ -1,5 +1,5 @@
 import re
-from config import CONFIG
+from getConfig import CONFIG
 import json
 
 
@@ -60,8 +60,8 @@ merge_langs = {
 }
 
 for lang, files in merge_langs.items():
-    merge_jsons(f'{CONFIG["DataPath"]}/TextMap/TextMap{files[0]}.json', f'{CONFIG["DataPath"]}/TextMap/TextMap{files[1]}.json', f'{CONFIG["DataPath"]}/TextMap/TextMap{lang}.json')
+    merge_jsons(f'{CONFIG.DATA_PATH}/TextMap/TextMap{files[0]}.json', f'{CONFIG.DATA_PATH}/TextMap/TextMap{files[1]}.json', f'{CONFIG.DATA_PATH}/TextMap/TextMap{lang}.json')
 
 for n in range(0, len(repl_langs)):
-    replace_text(f'{CONFIG["DataPath"]}/TextMap/TextMap' + repl_langs[n] + ".json")
+    replace_text(f'{CONFIG.DATA_PATH}/TextMap/TextMap' + repl_langs[n] + ".json")
     

@@ -2,10 +2,13 @@ import json
 import argparse
 import os
 import re
-import shutil
-from decimal import Decimal
 from config import CONFIG
+
+import utils.ol as ol
 from parseMisc import parse_extraeffect
+from utils.files import write_file
+from utils.misc import autoround, convertwhole, copy_icon
+from utils.pageinfo import pageinfo
 
 IMAGE_PATH = f'{CONFIG["ImgPath"]}/assets/asbres/'
 BUFFED_PREFIX = 'buffed_'
@@ -31,100 +34,9 @@ ability_list = [['01', 'Basic_ATK_1'], ['02', 'Skill'], ['03', 'Ultimate'], ['04
 trace_list = [['101', 'A2'], ['102', 'A4'], ['103', 'A6']]
 eidolon_list = [['01', 'E1'], ['02', 'E2'], ['03', 'E3'], ['04', 'E4'], ['05', 'E5'], ['06', 'E6']]
 
-
 character = ''
 
-def copy_file(source_path, destination_path):
-    if os.path.exists(source_path):
-        shutil.copy(source_path, destination_path)
-        print(f"File copied successfully from {source_path} to {destination_path}")
-    else:
-        print(f"The file {source_path} does not exist.")
-        
-
-def autoround(value):
-    s_value = str(value)
-
-    patterns = ['999', '998', '000', '001']
-    
-    out = value
-
-    for pattern in patterns:
-        position = s_value.find(pattern)
-        if position != -1:
-            # Position of the pattern minus position of the dot gives the number of decimal places
-            out = round(value, position - s_value.find('.'))
-    
-    if isinstance(out, float):        
-        if out.is_integer():
-            return int(out)
-
-    return out
-
-
-def convertwhole(value):
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    else:
-        return value
-
-
-langs = ['CHS','CHT','DE','EN','ES','FR','ID','JP','KR','PT','RU','TH','VI']
-data = {}
-for lang in langs:
-    with open(f'{CONFIG["DataPath"]}/TextMap/TextMap{lang}.json', 'r', encoding='utf-8') as file:
-        data[lang] = json.load(file)
-
-
-def genOL(text):        
-    textdata = {}
-    textId_list = []
-        
-    for item in data['EN']:
-        if (data['EN'][item]) == text:
-            textId_list.append(item)
-    textId = textId_list[0]
-    
-    for lang in langs:
-        textdata[lang] = data[lang].get(textId, '')
-        
-    output = f"{{{{Other Languages\n|en   = {text}\n|zhs  = {textdata['CHS']}\n|zht  = {textdata['CHT']}\n|ja   = {textdata['JP']}\n|ko   = {textdata['KR']}\n|es   = {textdata['ES']}\n|fr   = {textdata['FR']}\n|ru   = {textdata['RU']}\n|th   = {textdata['TH']}\n|vi   = {textdata['VI']}\n|de   = {textdata['DE']}\n|id   = {textdata['ID']}\n|pt   = {textdata['PT']}\n}}}}\n"
-    
-    return output
-
-
-def write_file(file_write_path, file_write):
-    with open(file_write_path, 'w', encoding='utf-8') as file:
-        file.write(file_write)
-        print('Saved to ' + file_write_path + '.')    
-
-
-def file_redirect(target, source):
-    if not os.path.exists(f'{CONFIG["OutputPath"]}/Redirects'):
-            os.makedirs(f'{CONFIG["OutputPath"]}/Redirects')
-    
-    file_write_path = f'{CONFIG["OutputPath"]}/Redirects/{target}.wikitext'
-    file_write = f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some important information of edit. This struct will be removed automatically after you push edits.#\n    pageTitle = #File:{source}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    contentFormat = ##\n[END_PAGE_INFO] --%>\n\n#REDIRECT [[File:{target}]]\n[[Category:Redirect Pages]]"
-    
-    write_file(file_write_path, file_write)
-    
-
-
-def copy_icon(source, name, folder):
-    file_name_clean = name.replace(":", "").replace("?", "")
-    
-    if file_name_clean != name:
-        file_redirect(file_name_clean, name)
-        
-    src = IMAGE_PATH + source.lower()
-    
-    #print(src)
-    dest = f'{CONFIG["OutputPath"]}/Images/{folder}/{file_name_clean}'
-    
-    if not os.path.exists(f'{CONFIG["OutputPath"]}/Images/{folder}'):
-            os.makedirs(f'{CONFIG["OutputPath"]}/Images/{folder}')
-    
-    copy_file(src, dest)
+ol.load_data()
 
 
 def parseSkill(id, ver):
@@ -214,17 +126,14 @@ def parseSkill(id, ver):
     except KeyError:
         energyCost = ''
     
-    OLtext = genOL(name)
+    OLtext = ol.gen_ol(name)
     
     # parse extra effect
     extraeffect_idlist = avatarskillconfig[id]['1']['ExtraEffectIDList']
     if extraeffect_idlist:
         desc = parse_extraeffect(desc, extraeffect_idlist)
     
-    page_content = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
-                    f"important information of edit. This struct will be removed automatically after you push edits.#"
-                    f"\n    pageTitle = #{name}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    "
-                    f"contentFormat = ##\n[END_PAGE_INFO] --%>\n\n{{{{Ability Infobox\n|title      = {name}\n|image"
+    page_content = (f"{pageinfo(name)}\n{{{{Ability Infobox\n|title      = {name}\n|image"
                     f"      = Ability {name}.png\n|character  = {character}\n|type       = {type}\n|tag        "
                     f"= {tag}\n|toughdmg   = {toughdmg_output}\n|energyGen  = {energyGen}\n|energyCost = {energyCost}"
                     f"\n|duration   = \n|desc       = {desc}\n|utility1   = \n|scale_att1 = \n}}}}\n'''{name}''' is"
@@ -271,14 +180,14 @@ def parseTrace(id, ver):
         desc = desc.replace(f'#{n + 1}[i]', f'{str(param)}')
         desc = desc.replace(f'#{n + 1}[f1]', f'{str(param)}')
     
-    OLtext = genOL(name)
+    OLtext = ol.gen_ol(name)
     
     # parse extra effect
     extraeffect_idlist = skilltreeconfig[id]['1']['ExtraEffectIDList']
     if extraeffect_idlist:
         desc = parse_extraeffect(desc, extraeffect_idlist)
     
-    page_content = f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some important information of edit. This struct will be removed automatically after you push edits.#\n    pageTitle = #{name}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    contentFormat = ##\n[END_PAGE_INFO] --%>\n\n{{{{Ability Infobox\n|title      = {name}\n|image      = Trace {name}.png\n|character  = {character}\n|type       = Bonus Ability\n|reqAsc     = {ascension}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = \n}}}}\n'''{{{{subst:PAGENAME}}}}''' is one of [[{character}]]'s [[Bonus Abilities]].\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
+    page_content = f"{pageinfo(name)}\n{{{{Ability Infobox\n|title      = {name}\n|image      = Trace {name}.png\n|character  = {character}\n|type       = Bonus Ability\n|reqAsc     = {ascension}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = \n}}}}\n'''{{{{subst:PAGENAME}}}}''' is one of [[{character}]]'s [[Bonus Abilities]].\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
     
     if args.enhanced:
         page_content = (f"|{BUFFED_PREFIX}type       = Bonus Ability\n|{BUFFED_PREFIX}reqAsc     = {ascension}\n"
@@ -318,7 +227,7 @@ def parseEidolon(id, ver):
         desc = desc.replace(f'#{n + 1}[i]', f'{str(param)}')
         desc = desc.replace(f'#{n + 1}[f1]', f'{str(param)}')
     
-    OLtext = genOL(name)
+    OLtext = ol.gen_ol(name)
     
     utility = []
     
@@ -342,7 +251,7 @@ def parseEidolon(id, ver):
     if extraeffect_idlist:
         desc = parse_extraeffect(desc, extraeffect_idlist)
     
-    page_content = f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some important information of edit. This struct will be removed automatically after you push edits.#\n    pageTitle = #{name}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    contentFormat = ##\n[END_PAGE_INFO] --%>\n\n{{{{Eidolon Infobox\n|title      = {name}\n|image      = Eidolon {name}.png\n|character  = {character}\n|level      = {rank}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = {utility[0]}\n|utility2   = {utility[1]}\n}}}}\n'''{name}''' is [[{character}]]'s Level {rank} Eidolon.\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
+    page_content = f"{pageinfo(name)}\n{{{{Eidolon Infobox\n|title      = {name}\n|image      = Eidolon {name}.png\n|character  = {character}\n|level      = {rank}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = {utility[0]}\n|utility2   = {utility[1]}\n}}}}\n'''{name}''' is [[{character}]]'s Level {rank} Eidolon.\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
     
     if args.enhanced:
         page_content = (f"|{BUFFED_PREFIX}level      = {rank}\n|{BUFFED_PREFIX}duration   = \n|{BUFFED_PREFIX}desc       = {desc}\n"
@@ -425,12 +334,9 @@ def parseServantSkill(id, ver):
     if extraeffect_idlist:
         desc = parse_extraeffect(desc, extraeffect_idlist)
     
-    OLtext = genOL(name)
+    OLtext = ol.gen_ol(name)
     
-    page_content = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
-                    f"important information of edit. This struct will be removed automatically after you push edits.#"
-                    f"\n    pageTitle = #{name}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    "
-                    f"contentFormat = ##\n[END_PAGE_INFO] --%>\n\n{{{{Ability Infobox\n|title      = {name}\n|image"
+    page_content = (f"{pageinfo(name)}\n{{{{Ability Infobox\n|title      = {name}\n|image"
                     f"      = Ability {name}.png\n|character  = {character}\n|type       = {type}\n|tag        "
                     f"= {tag}\n|toughdmg   = {toughdmg_output}\n|energyGen  = {energyGen}\n|energyCost = {energyCost}"
                     f"\n|duration   = \n|desc       = {desc}\n|utility1   = \n|scale_att1 = \n}}}}\n'''{name}''' is"
@@ -500,17 +406,14 @@ def parseGlobal(id, ver):
     except KeyError:
         energyCost = ''
     
-    OLtext = genOL(name)
+    OLtext = ol.gen_ol(name)
     
     # parse extra effect
     extraeffect_idlist = avatarglobalconfig[id]['ExtraEffectIDList']
     if extraeffect_idlist:
         desc = parse_extraeffect(desc, extraeffect_idlist)
     
-    page_content = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
-                    f"important information of edit. This struct will be removed automatically after you push edits.#"
-                    f"\n    pageTitle = #{name}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    "
-                    f"contentFormat = ##\n[END_PAGE_INFO] --%>\n\n{{{{Ability Infobox\n|title      = {name}\n|image"
+    page_content = (f"{pageinfo(name)}\n{{{{Ability Infobox\n|title      = {name}\n|image"
                     f"      = Ability {name}.png\n|character  = {character}\n|type       = {type}\n|tag        "
                     f"= {tag}\n|toughdmg   = {toughdmg_output}\n|energyGen  = {energyGen}\n|energyCost = {energyCost}"
                     f"\n|duration   = \n|desc       = {desc}\n|utility1   = \n|scale_att1 = \n}}}}\n'''{name}''' is"
@@ -543,9 +446,7 @@ if not char_id == "None":
         try:
             write = parseSkill(id, ver)
             if write:
-                with open(file_write_path, 'w', encoding='utf-8') as file:
-                    file.write(write)
-                print('Saved to ' + file_write_path + '.')
+                write_file(file_write_path, write)
         except KeyError as err:
             print(f'Skipped {id}. ({err})')
         
@@ -557,9 +458,7 @@ if not char_id == "None":
         
         write = parseTrace(id, ver)
         if write:
-            with open(file_write_path, 'w', encoding='utf-8') as file:
-                file.write(write)
-            print('Saved to ' + file_write_path + '.')
+            write_file(file_write_path, write)
         
     for eidolon in eidolon_list:
         file_write_path = f'{CONFIG["OutputPath"]}/{character}/Eidolons/{eidolon[1]}.wikitext'
@@ -569,17 +468,13 @@ if not char_id == "None":
             
         write = parseEidolon(id, ver)
         if write:
-            with open(file_write_path, 'w', encoding='utf-8') as file:
-                file.write(write)
-            print('Saved to ' + file_write_path + '.')
+            write_file(file_write_path, write)
     
     # global passive
     global_file_write_path = f'{CONFIG["OutputPath"]}/{character}/Abilities/Global Passive.wikitext'
     global_content = parseGlobal(char_id, ver)
     if global_content:
-        with open(global_file_write_path, 'w', encoding='utf-8') as file:
-            file.write(global_content)
-        print('Saved to ' + global_file_write_path + '.')
+        write_file(global_file_write_path, global_content)
         
     # servants    
     if avatarconfig[char_id]['AvatarBaseType'] == 'Memory':
@@ -595,9 +490,7 @@ if not char_id == "None":
         
         for servant_skill in servant_skills:
             file_write_path = f'{CONFIG["OutputPath"]}/{character}/Abilities/Servant {servant_skill}.wikitext'
-            with open(file_write_path, 'w', encoding='utf-8') as file:
-                file.write(parseServantSkill(servant_skill, ver))
-            print('Saved to ' + file_write_path + '.')
+            write_file(file_write_path, parseServantSkill(servant_skill, ver))
         
         
         
