@@ -3,3 +3,4 @@ output/
 archive/
 node_modules/
 __pycache__/
+.idea/
