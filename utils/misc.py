@@ -42,6 +42,16 @@ def convertwhole(value):
     else:
         return value
     
+    
+def dict_to_template(dictionary, template):
+    out = ''
+    for key, value in dictionary.items():
+        out = f'{out}|{key} = {value}\n'
+
+    out = f'{{{{{template}\n{out}}}}}'
+
+    return out
+    
 
 def parse_extraeffect(desc, idlist):
     underline_tags = re.findall(r'<u>(.*?)</u>', desc)
@@ -108,3 +118,21 @@ def parse_reward_text(reward_id):
             continue
 
     return reward_text
+
+
+def parse_mazebuff(id):
+    with open(f'{CONFIG.EXCEL_PATH}/MazeBuff.json', 'r', encoding = 'utf-8') as file:
+        mazebuffjson = json.load(file)
+        
+    desc = mazebuffjson[id]['1']['BuffDesc']['TextMapEN']
+    params = mazebuffjson[id]['1']['ParamList']
+    
+    name = mazebuffjson[id]['1']['BuffName']['TextMapEN']
+    
+    icon = mazebuffjson[id]['1'].get('BuffIcon')
+    
+    if icon and icon != 'SpriteOutput/BuffIcon/Inlevel/IconBuffCommon.png':
+        copy_file(f'{CONFIG.IMAGE_PATH}/{icon}', f'{CONFIG.OUTPUT_PATH}/Images/Icon {name}.png')
+        
+    
+    return name, parse_params(desc, params)
