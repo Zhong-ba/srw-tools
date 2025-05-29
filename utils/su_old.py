@@ -1,6 +1,8 @@
 import json
+import os
 
 from utils.misc import parse_params, convertwhole, autoround
+from utils.files import copy_file, write_file
 from getConfig import CONFIG
 
 
@@ -36,14 +38,9 @@ def parse_curio():
                       f'\n|-\n|[[File:Curio {name}.png|50px]]\n|\'\'\'{name}\'\'\'\n|{desc}\n|-\n|colspan="3" | {lore}')
 
         file_write_2 = file_write_2 + f'\n** {{{{Item|{name}|20|nobr=1|type=Curio|link=}}}}'
-
-    with open(file_write_path, 'w') as file:
-        file.write(file_write)
-        print('Saved to ' + file_write_path + '.')
-
-    with open(file_write_2_path, 'w') as file:
-        file.write(file_write_2)
-        print('Saved to ' + file_write_2_path + '.')
+        
+    write_file(file_write_path, file_write)
+    write_file(file_write_2_path, file_write_2)
         
 
 def parse_blessings():
@@ -149,6 +146,40 @@ def parse_blessings():
             file_write = (file_write +
                           f'\n|-\n|{{{{SU Blessing Card|{path}|{imagetype}|{rarity}}}}}\n|{name}\n|{desc1}\n|{desc2}')
 
-    with open(file_write_path, 'w') as file:
-        file.write(file_write)
-        print('Saved to ' + file_write_path + '.')
+    write_file(file_write_path, file_write)
+        
+    
+def parse_nous_dice_face():
+    with open(f'{CONFIG.EXCEL_PATH}/RogueNousDiceSurface.json', 'r', encoding = 'utf-8') as file:
+        dicesurfacejson = json.load(file)
+
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Dice_Face_Output.lua'
+    file_write = ''
+
+    dice_dict = {}
+
+    for item in dicesurfacejson:
+        name = dicesurfacejson[item]['SurfaceName']['TextMapEN']
+        rarity = str(dicesurfacejson[item]['Rarity'] + 2)
+
+        dice_dict[name] = rarity
+
+        file_name_clean = f'Dice Face {name.replace(":", "")}'
+
+        source_path = dicesurfacejson[item]['Icon']
+        source_path = f'{CONFIG.IMAGE_PATH}/{source_path.lower()}'
+        destination_path = f'{CONFIG.OUTPUT_PATH}/DiceFaces/{file_name_clean}.png'
+
+        if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/DiceFaces'):
+            os.makedirs(f'{CONFIG.OUTPUT_PATH}/DiceFaces')
+
+        copy_file(source_path, destination_path)
+
+    sorted_dict = {key: dice_dict[key] for key in sorted(dice_dict)}
+
+    sorted_dict_2 = {k: v for k, v in sorted(sorted_dict.items(), key = lambda dict_item: dict_item[1], reverse = True)}
+
+    for name, rarity in sorted_dict_2.items():
+        file_write = file_write + f'\n	[\'{name}\'] = {{ rarity = \'{rarity}\' }},'
+
+    write_file(file_write_path, file_write)

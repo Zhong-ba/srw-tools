@@ -1,10 +1,11 @@
 import json
 import os
 import glob
-from config import CONFIG
 
-IN_PATH = f'{CONFIG["DataPath"]}/ExcelOutput'
-OUT_PATH = f'{CONFIG["DataPath"]}/ExcelOutput_Fix'
+from getConfig import CONFIG
+
+IN_PATH = f'{CONFIG.DATA_PATH}/ExcelOutput'
+OUT_PATH = f'{CONFIG.DATA_PATH}/ExcelOutput_Fix'
 
 if not os.path.exists(OUT_PATH):
     os.makedirs(OUT_PATH)
