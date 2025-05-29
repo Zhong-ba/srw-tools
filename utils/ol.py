@@ -2,7 +2,7 @@ import json
 
 from getConfig import CONFIG
 
-langs = []
+langs = ['CHS','CHT','DE','EN','ES','FR','ID','JP','KR','PT','RU','TH','VI']
 data = {}
 
 
@@ -17,8 +17,10 @@ def print_progress_bar(iteration, total, length = 50):
 
 def load_data(progress_callback = None):
     global langs, data
-    langs = ['CHS','CHT','DE','EN','ES','FR','ID','JP','KR','PT','RU','TH','VI']
-    data = {}
+    
+    if data:
+        return
+    
     for index, lang in enumerate(langs):
         with open(f'{CONFIG.DATA_PATH}/TextMap/TextMap{lang}.json', 'r', encoding='utf-8') as file:
             data[lang] = json.load(file)

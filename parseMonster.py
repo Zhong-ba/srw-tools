@@ -3,9 +3,8 @@ import argparse
 import re
 import os
 
-from parseMisc import parse_extraeffect
 from utils.files import write_file
-from utils.misc import autoround, copy_icon
+from utils.misc import autoround, copy_icon, parse_extraeffect
 from utils.pageinfo import pageinfo
 import utils.ol as ol
 from getConfig import CONFIG

@@ -4,9 +4,8 @@ import os
 import re
 
 import utils.ol as ol
-from parseMisc import parse_extraeffect
 from utils.files import write_file
-from utils.misc import autoround, convertwhole, copy_icon
+from utils.misc import autoround, convertwhole, copy_icon, parse_extraeffect
 from utils.pageinfo import pageinfo
 from getConfig import CONFIG
 

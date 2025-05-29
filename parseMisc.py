@@ -4,115 +4,18 @@ import shutil
 import os
 import re
 import pyperclip
-from config import CONFIG
 
-T2D_PATH = f'{CONFIG["ImgPath"]}/assets/asbres/'
-SPRITE_PATH = f'{CONFIG["ImgPath"]}/assets/asbres/'
-MAPPED_EXCEL_PATH = f'{CONFIG["DataPath"]}/MappedExcelOutput_EN'
-OLD_MAPPED_EXCEL_PATH = f'{CONFIG["DataPathOld"]}/MappedExcelOutput_EN'
-TEXTMAP_PATH = f'{CONFIG["DataPath"]}/TextMap'
-OUT_PATH = CONFIG['OutputPath']
+import utils.ol as ol
+from utils.redirect import file_redirect
+from utils.misc import parse_params, parse_reward_text, autoround, convertwhole
+from utils.target import parse_battle_target, parse_raid_target
+from getConfig import CONFIG
 
-
-def file_redirect(target, source):
-    if not os.path.exists(f'{OUT_PATH}/Redirects'):
-        os.makedirs(f'{OUT_PATH}/Redirects')
-
-    file_write_path = f'{OUT_PATH}/Redirects/{source}.wikitext'
-    file_write = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
-                  f"important information of edit. This struct will be removed automatically after you push edits.#\n "
-                  f"   pageTitle = #File:{target}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    "
-                  f"contentFormat = ##\n[END_PAGE_INFO] --%>\n\n#REDIRECT [[File:{source}]]\n[[Category:Redirect "
-                  f"Pages]]")
-
-    write_file(file_write_path, file_write)
-    
-
-def main_redirect(target, source):
-    if not os.path.exists(f'{OUT_PATH}/Redirects'):
-        os.makedirs(f'{OUT_PATH}/Redirects')
-        
-    filename = re.sub(r'[^\w\s]', '', source)
-
-    file_write_path = f'{OUT_PATH}/Redirects/{filename}.wikitext'
-    file_write = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
-                  f"important information of edit. This struct will be removed automatically after you push edits.#\n "
-                  f"   pageTitle = #{target}#\n    pageID = ##\n    revisionID = ##\n    contentModel = ##\n    "
-                  f"contentFormat = ##\n[END_PAGE_INFO] --%>\n\n#REDIRECT [[{source}]]\n[[Category:Redirect "
-                  f"Pages]]")
-
-    write_file(file_write_path, file_write)
-    
-    
-def parse_extraeffect(desc, idlist):
-    underline_tags = re.findall(r'<u>(.*?)</u>', desc)
-    seen = set()
-    unique_tags = []
-    for tag in underline_tags:
-        if tag not in seen:
-            seen.add(tag)
-            unique_tags.append(tag)
-
-    if len(unique_tags) != len(idlist):
-        # Fallback replacement without IDs, with warning
-        print("Warning: mismatched tag and ID count.")
-        print("Found tags:", unique_tags)
-        print("Provided IDs:", idlist)
-        return re.sub(r'<u>(.*?)</u>', r'{{Extra Effect|\1}}', desc)
-
-    # Map tags to IDs
-    effect_dict = dict(zip(unique_tags, idlist))
-
-    # Replace tags with ID-injected format
-    def replacer(match):
-        text = match.group(1)
-        return f"{{{{Extra Effect|{text}|{effect_dict[text]}}}}}"
-
-    return re.sub(r'<u>(.*?)</u>', replacer, desc)
-
-
-def parse_params(desc, params):
-    try:
-        if isinstance(params[0], dict):
-            params = [key["Value"] for key in params]
-
-        for n in range(0, len(params)):
-            percent = autoround(params[n] * 100)
-            desc = desc.replace(f'#{n + 1}[i]%', str(int(percent)) + '%')
-            desc = desc.replace(f'#{n + 1}[i]', str(autoround(params[n])))
-            desc = desc.replace(f'#{n + 1}', str(autoround(params[n])))
-    except IndexError as err:
-        print(f'Param mapping failed. ({err})')
-
-    return desc
-
-
-def parse_reward_text(reward_id):
-    reward_text = ''
-
-    with open(f'{MAPPED_EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
-        itemjson = json.load(file)
-
-    with open(f'{MAPPED_EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
-        rewardjson = json.load(file)
-
-    for n in range(9):
-        try:
-            item_id = str(rewardjson[reward_id][f'ItemID_{n + 1}'])
-            item_name = itemjson[item_id]['ItemName']['TextMapEN']
-            count = rewardjson[reward_id][f'Count_{n + 1}']
-            if n == 0:
-                reward_text = reward_text + f'{item_name}*{count}'
-            else:
-                reward_text = reward_text + f',{item_name}*{count}'
-        except KeyError:
-            continue
-
-    return reward_text
+TEXTMAP_PATH = f'{CONFIG.DATA_PATH}/TextMap'
 
 
 def parse_monster_text(monster_list):
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
         monsterjson = json.load(file)
 
     monster_text = ''
@@ -129,104 +32,13 @@ def parse_monster_text(monster_list):
     return monster_text
 
 
-def parse_challenge_target(target_id):
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeTargetConfig.json', 'r', encoding = 'utf-8') as file:
-        targetconfig = json.load(file)
-
-    target_string = targetconfig[target_id]['ChallengeTargetName']['TextMapEN']
-    try:
-        target_param = targetconfig[target_id]['ChallengeTargetParam1']
-    except KeyError:
-        target_param = 0
-
-    target_string = target_string.replace(r'#1[i]', str(target_param))
-
-    return target_string
-
-
-def parse_battle_target(target_id):
-    with open(f'{MAPPED_EXCEL_PATH}/BattleTargetConfig.json', 'r', encoding = 'utf-8') as file:
-        targetconfig = json.load(file)
-
-    target_string = targetconfig[target_id]['TargetName']['TextMapEN']
-    try:
-        target_param = targetconfig[target_id]['TargetParam']
-    except KeyError:
-        target_param = 0
-
-    target_string = target_string.replace(r'#1[i]', str(target_param))
-
-    return target_string
-
-
-def parse_raid_target(target_id):
-    with open(f'{MAPPED_EXCEL_PATH}/RaidTargetConfig.json', 'r', encoding = 'utf-8') as file:
-        targetconfig = json.load(file)
-
-    target_string = targetconfig[target_id]['TargetName']['TextMapEN']
-    try:
-        target_param = targetconfig[target_id]['TargetParam1']
-    except KeyError:
-        target_param = 0
-
-    target_string = target_string.replace(r'#1[i]', str(target_param)).replace(r'#1', str(target_param))
-
-    return target_string
-
-
-def gen_ol(text):
-    langs = ['CHS', 'CHT', 'DE', 'EN', 'ES', 'FR', 'ID', 'JP', 'KR', 'PT', 'RU', 'TH', 'VI']
-    data = {}
-    textdata = {}
-    text_id_list = []
-    for lang in langs:
-        with open(f'{TEXTMAP_PATH}/TextMap{lang}.json', 'r', encoding = 'utf-8') as file:
-            data[lang] = json.load(file)
-
-    for item in data['EN']:
-        if (data['EN'][item]) == text:
-            text_id_list.append(item)
-    text_id = text_id_list[0]
-
-    for lang in langs:
-        textdata[lang] = data[lang][text_id]
-
-    output = (f"{{{{Other Languages\n|en   = {text}\n|zhs  = {textdata['CHS']}\n|zht  = {textdata['CHT']}\n"
-              f"|ja   = {textdata['JP']}\n|ko   = {textdata['KR']}\n|es   = {textdata['ES']}\n|fr   = {textdata['FR']}"
-              f"\n|ru   = {textdata['RU']}\n|th   = {textdata['TH']}\n|vi   = {textdata['VI']}\n|de   = {textdata['DE']}"
-              f"\n|id   = {textdata['ID']}\n|pt   = {textdata['PT']}\n}}}}\n")
-
-    return output
-
-
-def autoround(value):
-    s_value = str(value)
-
-    patterns = ['999', '998', '000', '001']
-
-    for pattern in patterns:
-        position = s_value.find(pattern)
-        if position != -1:
-            # Position of the pattern minus position of the dot gives the number of decimal places
-            return round(value, position - s_value.find('.'))
-
-    return value
-
-
-def convertwhole(value):
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    else:
-        return value
-
-
 def parse_curio():
-    file_write_path =f'{OUT_PATH}Curio_Output.txt'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}Curio_Output.txt'
     file_write = ''
-    file_write_2_path =f'{OUT_PATH}Curio_Output_2.txt'
+    file_write_2_path =f'{CONFIG.OUTPUT_PATH}Curio_Output_2.txt'
     file_write_2 = ''
 
-    with open(f'{MAPPED_EXCEL_PATH}/RogueTournMiracleDisplay.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RogueTournMiracleDisplay.json', 'r', encoding = 'utf-8') as file:
         roguemiracleconfig = json.load(file)
 
     # get stage list
@@ -263,20 +75,22 @@ def parse_curio():
 
 
 def parse_aether_passive():
-    file_write_path =f'{OUT_PATH}AetherPassive.txt'
+    ol.load_data()
+    
+    file_write_path =f'{CONFIG.OUTPUT_PATH}AetherPassive.txt'
     file_write = ''
 
-    with open(f'{MAPPED_EXCEL_PATH}/AetherDividePassiveSkill-Mapped.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AetherDividePassiveSkill-Mapped.json', 'r', encoding = 'utf-8') as file:
         aetherpassivejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
         itemjson = json.load(file)
 
-    if not os.path.exists(f'{OUT_PATH}/AetherPassive/Items'):
-        os.makedirs(f'{OUT_PATH}/AetherPassive/Items')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/AetherPassive/Items'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}/AetherPassive/Items')
 
-    if not os.path.exists(f'{OUT_PATH}/AetherPassive/Redirects'):
-        os.makedirs(f'{OUT_PATH}/AetherPassive/Redirects')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/AetherPassive/Redirects'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}/AetherPassive/Redirects')
 
     for item in aetherpassivejson:
         try:
@@ -298,10 +112,11 @@ def parse_aether_passive():
                 desc = desc.replace(f'#{n + 1}[f1]%', f'{str(percent)}%')
                 desc = desc.replace(f'#{n + 1}[i]', f'{str(param)}')
                 desc = desc.replace(f'#{n + 1}[f1]', f'{str(param)}')
-            ol_text = gen_ol(name)
+            
+            ol_text = ol.gen_ol(name)
             file_write = file_write + f"\n|-\n| [[File:{icon}|50px]] || '''{name}'''<br />{desc}"
 
-            item_file_write_path = f'{OUT_PATH}/AetherPassive/Items/{name}.wikitext'
+            item_file_write_path = f'{CONFIG.OUTPUT_PATH}/AetherPassive/Items/{name}.wikitext'
             item_file_write = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record "
                                f"contains some important information of edit. This struct will be removed "
                                f"automatically after you push edits.#\n    pageTitle = #{name}#\n    pageID = ##\n    "
@@ -317,7 +132,7 @@ def parse_aether_passive():
                 file.write(item_file_write)
                 print('Saved to ' + item_file_write_path + '.')
 
-            redirect_file_write_path = f'{OUT_PATH}/AetherPassive/Redirects/{name}.wikitext'
+            redirect_file_write_path = f'{CONFIG.OUTPUT_PATH}/AetherPassive/Redirects/{name}.wikitext'
             redirect_file_write = (f"<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record "
                                    f"contains some important information of edit. This struct will be removed "
                                    f"automatically after you push edits.#\n    pageTitle = #File:Item {name}.png#\n   "
@@ -336,15 +151,15 @@ def parse_aether_passive():
 
 
 def parse_rewards():
-    file_write_path =f'{OUT_PATH}Rewards.txt'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}Rewards.txt'
 
-    with open(f'{MAPPED_EXCEL_PATH}/QuestData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/QuestData.json', 'r', encoding = 'utf-8') as file:
         questjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
         rewardjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
         itemjson = json.load(file)
 
     output = ''
@@ -388,15 +203,15 @@ def parse_rewards():
 
 
 def parse_rogue_endless_rewards():
-    file_write_path =f'{OUT_PATH}RogueEndlessRewards.txt'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}RogueEndlessRewards.txt'
 
-    with open(f'{MAPPED_EXCEL_PATH}/ActivityRewardRogueEndless.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ActivityRewardRogueEndless.json', 'r', encoding = 'utf-8') as file:
         rewardrogueendlessjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
         itemjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
         rewardjson = json.load(file)
 
     output = ''
@@ -438,10 +253,10 @@ def parse_rogue_endless_rewards():
 
 
 def parse_tutorial(tut_id):
-    with open(f'{MAPPED_EXCEL_PATH}/TutorialGuideGroup.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/TutorialGuideGroup.json', 'r', encoding = 'utf-8') as file:
         groupjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/TutorialGuideData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/TutorialGuideData.json', 'r', encoding = 'utf-8') as file:
         datajson = json.load(file)
 
     title = groupjson[tut_id]['MessageText']['TextMapEN']
@@ -454,12 +269,12 @@ def parse_tutorial(tut_id):
         output = output + f'\n|image{index} = Tutorial {title} {index}.png\n|text{index}  = {desc}'
 
         source_path = datajson[str(guide)]['Default']['ImagePath']
-        source_path = T2D_PATH + source_path.lower()
+        source_path = f'{CONFIG.IMAGE_PATH}/{source_path.lower()}'
         title_clean = re.sub(r'[^\w\s]', '', groupjson[tut_id]['MessageText']['TextMapEN'])
-        destination_path = f'{OUT_PATH}/Tutorial_{tut_id}/Tutorial {title_clean} {index}.png'
+        destination_path = f'{CONFIG.OUTPUT_PATH}/Tutorial_{tut_id}/Tutorial {title_clean} {index}.png'
 
-        if not os.path.exists(f'{OUT_PATH}/Tutorial_{tut_id}'):
-            os.makedirs(f'{OUT_PATH}/Tutorial_{tut_id}')
+        if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/Tutorial_{tut_id}'):
+            os.makedirs(f'{CONFIG.OUTPUT_PATH}/Tutorial_{tut_id}')
 
         if os.path.exists(source_path):
             shutil.copy(source_path, destination_path)
@@ -475,13 +290,13 @@ def parse_tutorial(tut_id):
 
 
 def parse_blessings():
-    file_write_path =f'{OUT_PATH}Blessings_Output.txt'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}Blessings_Output.txt'
     file_write = ''
 
-    with open(f'{MAPPED_EXCEL_PATH}/RogueMazeBuff.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RogueMazeBuff.json', 'r', encoding = 'utf-8') as file:
         roguemazebuff = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/RogueBuff.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RogueBuff.json', 'r', encoding = 'utf-8') as file:
         roguebuff = json.load(file)
 
     # get stage list
@@ -583,23 +398,23 @@ def parse_blessings():
 
 
 def parse_aether_divide_challenge():
-    with open(f'{MAPPED_EXCEL_PATH}/AetherDivideChallengeList.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AetherDivideChallengeList.json', 'r', encoding = 'utf-8') as file:
         aetherchallengjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
         itemjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
         stagejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
         monsterjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
         rewardjson = json.load(file)
 
     file_write = ''
-    file_write_path =f'{OUT_PATH}AetherChallenge.txt'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}AetherChallenge.txt'
 
     for item in aetherchallengjson:
         try:
@@ -646,23 +461,23 @@ def parse_aether_divide_challenge():
 
 
 def parse_heliobus_challenge():
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusChallengeStage.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusChallengeStage.json', 'r', encoding = 'utf-8') as file:
         heliobuschallengejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ItemConfig.json', 'r', encoding = 'utf-8') as file:
         itemjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
         stagejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
         monsterjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RewardData.json', 'r', encoding = 'utf-8') as file:
         rewardjson = json.load(file)
 
     file_write = ''
-    file_write_path =f'{OUT_PATH}HeliobusChallenge.txt'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}HeliobusChallenge.txt'
 
     for item in heliobuschallengejson:
         try:
@@ -723,13 +538,13 @@ def parse_heliobus_challenge():
 
 
 def parse_heliobus_raid(raid_id):
-    with open(f'{MAPPED_EXCEL_PATH}/RaidConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RaidConfig.json', 'r', encoding = 'utf-8') as file:
         raidjson = json.load(file)
 
     id_str = str(raid_id)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/HeliobusRaid_{id_str}.txt'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/HeliobusRaid_{id_str}.txt'
 
     name = raidjson[id_str]['0']['RaidName']['TextMapEN']
 
@@ -760,7 +575,7 @@ def parse_heliobus_raid(raid_id):
 
 
 def parse_heliobus_user():
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusUser.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusUser.json', 'r', encoding = 'utf-8') as file:
         heliobususerjson = json.load(file)
 
     for item in heliobususerjson:
@@ -775,17 +590,17 @@ def parse_heliobus_user():
                               f"pageID = ##\n    revisionID = ##\n    contentModel = ##\n    contentFormat = ##\n["
                               f"END_PAGE_INFO] --%>\n\n#REDIRECT [[File:{file_name_clean}.png]]\n[[Category:Redirect "
                               f"Pages]]")
-            redirect_write_path = f'{OUT_PATH}/HeliobusUserIcons/{file_name_clean}.wikitext'
+            redirect_write_path = f'{CONFIG.OUTPUT_PATH}/HeliobusUserIcons/{file_name_clean}.wikitext'
             with open(redirect_write_path, 'w') as file:
                 file.write(redirect_write)
                 print('Saved redirect page to ' + redirect_write_path + '.')
 
         source_path = heliobususerjson[item]['UserIconPath']
-        source_path = T2D_PATH + source_path.lower()
-        destination_path = f'{OUT_PATH}/HeliobusUserIcons/{file_name_clean}.png'
+        source_path = f'{CONFIG.IMAGE_PATH}/{source_path.lower()}'
+        destination_path = f'{CONFIG.OUTPUT_PATH}/HeliobusUserIcons/{file_name_clean}.png'
 
-        if not os.path.exists(f'{OUT_PATH}/HeliobusUserIcons'):
-            os.makedirs(f'{OUT_PATH}/HeliobusUserIcons')
+        if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/HeliobusUserIcons'):
+            os.makedirs(f'{CONFIG.OUTPUT_PATH}/HeliobusUserIcons')
 
         if os.path.exists(source_path):
             shutil.copy(source_path, destination_path)
@@ -795,7 +610,7 @@ def parse_heliobus_user():
 
 
 def get_heliobus_post_img(img_id):
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusPostImg.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusPostImg.json', 'r', encoding = 'utf-8') as file:
         heliobuspostimgjson = json.load(file)
 
     path = heliobuspostimgjson[str(img_id)]['PostImgPath']
@@ -804,7 +619,7 @@ def get_heliobus_post_img(img_id):
 
 
 def get_heliobus_user(user_id):
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusUser.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusUser.json', 'r', encoding = 'utf-8') as file:
         heliobususerjson = json.load(file)
 
     username = heliobususerjson[str(user_id)]['HeliobusUserName']['TextMapEN']
@@ -814,7 +629,7 @@ def get_heliobus_user(user_id):
 
 
 def parse_heliobus_comments(post_id, template = False):
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusComment.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusComment.json', 'r', encoding = 'utf-8') as file:
         heliobuscommentjson = json.load(file)
 
     comment_output = ''
@@ -853,11 +668,11 @@ def parse_heliobus_comments(post_id, template = False):
 
 
 def parse_heliobus_post():
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusPost.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusPost.json', 'r', encoding = 'utf-8') as file:
         heliobuspostjson = json.load(file)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/HeliobusPost/HeliobusPostOutput.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/HeliobusPost/HeliobusPostOutput.wikitext'
 
     for post in heliobuspostjson:
         # if post != '703':
@@ -873,11 +688,11 @@ def parse_heliobus_post():
 
         try:
             source_path = get_heliobus_post_img(heliobuspostjson[post]['PostImgID'])
-            source_path = T2D_PATH + source_path.lower()
-            destination_path = f'{OUT_PATH}/HeliobusPost/{file_name_clean}.png'
+            source_path = f'{CONFIG.IMAGE_PATH}/{source_path.lower()}'
+            destination_path = f'{CONFIG.OUTPUT_PATH}/HeliobusPost/{file_name_clean}.png'
 
-            if not os.path.exists(f'{OUT_PATH}/HeliobusPost'):
-                os.makedirs(f'{OUT_PATH}/HeliobusPost')
+            if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/HeliobusPost'):
+                os.makedirs(f'{CONFIG.OUTPUT_PATH}/HeliobusPost')
 
             if os.path.exists(source_path):
                 shutil.copy(source_path, destination_path)
@@ -901,11 +716,11 @@ def parse_heliobus_post():
 
 
 def parse_heliobus_template():
-    with open(f'{MAPPED_EXCEL_PATH}/HeliobusTemplate.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HeliobusTemplate.json', 'r', encoding = 'utf-8') as file:
         heliobustemplatejson = json.load(file)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/HeliobusTemplate/HeliobusTemplateOutput.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/HeliobusTemplate/HeliobusTemplateOutput.wikitext'
 
     for post in heliobustemplatejson:
         # if post != '703':
@@ -930,11 +745,11 @@ def parse_heliobus_template():
         file_name_clean = re.sub(r'[^\w\s]', '', file_name)
 
         source_path = get_heliobus_post_img(heliobustemplatejson[post]['PostImgID'])
-        source_path = T2D_PATH + source_path.lower()
-        destination_path = f'{OUT_PATH}/HeliobusTemplate/{file_name_clean}.png'
+        source_path = f'{CONFIG.IMAGE_PATH}/{source_path.lower()}'
+        destination_path = f'{CONFIG.OUTPUT_PATH}/HeliobusTemplate/{file_name_clean}.png'
 
-        if not os.path.exists(f'{OUT_PATH}/HeliobusTemplate'):
-            os.makedirs(f'{OUT_PATH}/HeliobusTemplate')
+        if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/HeliobusTemplate'):
+            os.makedirs(f'{CONFIG.OUTPUT_PATH}/HeliobusTemplate')
 
         if os.path.exists(source_path):
             shutil.copy(source_path, destination_path)
@@ -981,10 +796,10 @@ def python_dict_to_lua_table(python_dict, indent = 0):
 
 
 def parse_achiev_id():
-    with open(f'{MAPPED_EXCEL_PATH}/AchievementData.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AchievementData.json', 'r', encoding = 'utf-8') as file:
         achievementjson = json.load(file)
 
-    file_write_path = f'{OUT_PATH}/Achievments/Achiev_ID_Output.lua'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Achievments/Achiev_ID_Output.lua'
 
     achiev_dict = {}
 
@@ -1019,10 +834,10 @@ def copy_file(source_path, destination_path):
 
 
 def parse_nous_dice_face():
-    with open(f'{MAPPED_EXCEL_PATH}/RogueNousDiceSurface.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/RogueNousDiceSurface.json', 'r', encoding = 'utf-8') as file:
         dicesurfacejson = json.load(file)
 
-    file_write_path = f'{OUT_PATH}/Dice_Face_Output.lua'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Dice_Face_Output.lua'
     file_write = ''
 
     dice_dict = {}
@@ -1036,11 +851,11 @@ def parse_nous_dice_face():
         file_name_clean = f'Dice Face {name.replace(":", "")}'
 
         source_path = dicesurfacejson[item]['Icon']
-        source_path = T2D_PATH + source_path.lower()
-        destination_path = f'{OUT_PATH}/DiceFaces/{file_name_clean}.png'
+        source_path = f'{CONFIG.IMAGE_PATH}/{source_path.lower()}'
+        destination_path = f'{CONFIG.OUTPUT_PATH}/DiceFaces/{file_name_clean}.png'
 
-        if not os.path.exists(f'{OUT_PATH}/DiceFaces'):
-            os.makedirs(f'{OUT_PATH}/DiceFaces')
+        if not os.path.exists(f'{CONFIG.OUTPUT_PATH}/DiceFaces'):
+            os.makedirs(f'{CONFIG.OUTPUT_PATH}/DiceFaces')
 
         copy_file(source_path, destination_path)
 
@@ -1063,10 +878,10 @@ def write_file(file_write_path, file_write):
 
 
 def parse_hard_level():
-    with open(f'{MAPPED_EXCEL_PATH}/HardLevelGroup.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/HardLevelGroup.json', 'r', encoding = 'utf-8') as file:
         hardleveljson = json.load(file)
 
-    file_write_path = f'{OUT_PATH}/Level_Scaling_Output.lua'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Level_Scaling_Output.lua'
 
     dict_0 = {}
     dict_1 = {}
@@ -1109,14 +924,16 @@ def parse_hard_level():
 
 
 def parse_pure_fiction_main(pf_id, fh = False):
+    ol.load_data()
+    
     if fh:
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeMazeConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeMazeConfig.json', 'r', encoding = 'utf-8') as file:
             challengestoryjson = json.load(file)
     else:
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryMazeConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryMazeConfig.json', 'r', encoding = 'utf-8') as file:
             challengestoryjson = json.load(file)
             
-    with open(f'{MAPPED_EXCEL_PATH}/MazeBuff.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MazeBuff.json', 'r', encoding = 'utf-8') as file:
             mazebuffjson = json.load(file)
 
     stage_list = []
@@ -1127,9 +944,9 @@ def parse_pure_fiction_main(pf_id, fh = False):
 
     file_write = ''
     if fh:
-        file_write_path = f'{OUT_PATH}/Forgotten_Hall_Output.wikitext'
+        file_write_path = f'{CONFIG.OUTPUT_PATH}/Forgotten_Hall_Output.wikitext'
     else:
-        file_write_path = f'{OUT_PATH}/Pure_Fiction_Output.wikitext'
+        file_write_path = f'{CONFIG.OUTPUT_PATH}/Pure_Fiction_Output.wikitext'
 
     for n, stage in enumerate(stage_list):
         if n == len(stage_list) - 1:
@@ -1148,10 +965,10 @@ def parse_pure_fiction_main(pf_id, fh = False):
                   f'row; flex-wrap: wrap;"><div>\n{file_write}\n</div></div>')
     
     if fh:
-        with open(f'{MAPPED_EXCEL_PATH}/ScheduleDataChallengeMaze.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ScheduleDataChallengeMaze.json', 'r', encoding = 'utf-8') as file:
             schedulejson = json.load(file)
         
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeGroupConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeGroupConfig.json', 'r', encoding = 'utf-8') as file:
             challengegroupjson = json.load(file)        
             
         challengegroup = challengegroupjson[str(pf_id)]
@@ -1169,7 +986,7 @@ def parse_pure_fiction_main(pf_id, fh = False):
         starttime = schedulejson[str(scheduleid)]['BeginTime'].replace('-', '/')
         endtime = schedulejson[str(scheduleid)]['EndTime'].replace('-', '/')
         
-        ol = gen_ol(periodname)
+        ol_text = ol.gen_ol(periodname)
         
         file_write = f'''{{{{Forgotten Hall Version
 |time_start        = {starttime}
@@ -1195,7 +1012,7 @@ def parse_pure_fiction_main(pf_id, fh = False):
 {file_write}
 <noinclude>
 ==Other Languages==
-{ol}<!--
+{ol_text}<!--
 ==Notes==
 {{{{Reflist|note=1}}}}
 -->
@@ -1204,13 +1021,13 @@ def parse_pure_fiction_main(pf_id, fh = False):
 </noinclude>
 '''        
     else:
-        with open(f'{MAPPED_EXCEL_PATH}/ScheduleDataChallengeStory.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ScheduleDataChallengeStory.json', 'r', encoding = 'utf-8') as file:
             schedulejson = json.load(file)
         
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryGroupConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryGroupConfig.json', 'r', encoding = 'utf-8') as file:
             challengegroupjson = json.load(file) 
             
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryGroupExtra.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryGroupExtra.json', 'r', encoding = 'utf-8') as file:
             extrajson = json.load(file)
             
         challengegroup = challengegroupjson[str(pf_id)]
@@ -1226,13 +1043,13 @@ def parse_pure_fiction_main(pf_id, fh = False):
         
         begin, end = parse_schedule(str(challengegroupjson[str(pf_id)]['ScheduleDataID']), schedulejson)
         
-        ol = gen_ol(periodname)
+        ol_text = ol.gen_ol(periodname)
         
         # phase icon
         icon = extrajson[str(pf_id)].get('ThemeIconPicPath')
         
         if icon:
-            copy_file(f'{T2D_PATH}/{icon}', f'{OUT_PATH}/Images/{periodname}.png')
+            copy_file(f'{CONFIG.IMAGE_PATH}/{icon}', f'{CONFIG.OUTPUT_PATH}/Images/{periodname}.png')
         
         file_write = f'''<noinclude>
 {{{{Pure Fiction Version
@@ -1260,7 +1077,7 @@ def parse_pure_fiction_main(pf_id, fh = False):
 {file_write}
 <noinclude>
 ==Other Languages==
-{ol}
+{ol_text}
 ==Navigation==
 {{{{Endgame Navbox}}}}
 </noinclude>
@@ -1271,7 +1088,9 @@ def parse_pure_fiction_main(pf_id, fh = False):
     
     
 def parse_pure_fiction_main_v2(pf_id, fh = False):
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryMazeConfig.json', 'r', encoding = 'utf-8') as file:
+    ol.load_data()
+    
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryMazeConfig.json', 'r', encoding = 'utf-8') as file:
         challengestoryjson = json.load(file)
 
     stage_list = []
@@ -1281,7 +1100,7 @@ def parse_pure_fiction_main_v2(pf_id, fh = False):
             stage_list.append(maze)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/Pure_Fiction_Output.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Pure_Fiction_Output.wikitext'
 
     for n, stage in enumerate(stage_list):
         if n == len(stage_list) - 1:
@@ -1297,13 +1116,13 @@ def parse_pure_fiction_main_v2(pf_id, fh = False):
                   f'row; flex-wrap: wrap;"><div>\n{file_write}\n</div></div>')
     
     
-    with open(f'{MAPPED_EXCEL_PATH}/ScheduleDataChallengeStory.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ScheduleDataChallengeStory.json', 'r', encoding = 'utf-8') as file:
         schedulejson = json.load(file)
     
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryGroupConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryGroupConfig.json', 'r', encoding = 'utf-8') as file:
         challengegroupjson = json.load(file) 
         
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryGroupExtra.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryGroupExtra.json', 'r', encoding = 'utf-8') as file:
         extrajson = json.load(file)
         
     challengegroup = challengegroupjson[str(pf_id)]
@@ -1320,13 +1139,13 @@ def parse_pure_fiction_main_v2(pf_id, fh = False):
     
     begin, end = parse_schedule(str(challengegroupjson[str(pf_id)]['ScheduleDataID']), schedulejson)
     
-    ol = gen_ol(periodname)
+    ol_text = ol.gen_ol(periodname)
     
     # phase icon
     icon = extrajson[str(pf_id)].get('ThemeIconPicPath')
     
     if icon:
-        copy_file(f'{T2D_PATH}/{icon}', f'{OUT_PATH}/Images/{periodname}.png')
+        copy_file(f'{CONFIG.IMAGE_PATH}/{icon}', f'{CONFIG.OUTPUT_PATH}/Images/{periodname}.png')
     
     file_write = f'''<noinclude>
 {{{{Pure Fiction Version
@@ -1358,7 +1177,7 @@ def parse_pure_fiction_main_v2(pf_id, fh = False):
 {file_write}
 <noinclude>
 ==Other Languages==
-{ol}
+{ol_text}
 ==Navigation==
 {{{{Endgame Navbox}}}}
 </noinclude>
@@ -1369,13 +1188,13 @@ def parse_pure_fiction_main_v2(pf_id, fh = False):
 
 
 def parse_pure_fiction(pf_id):
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryMazeConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryMazeConfig.json', 'r', encoding = 'utf-8') as file:
         challengestoryjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
         stagejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/StageInfiniteGroup.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageInfiniteGroup.json', 'r', encoding = 'utf-8') as file:
         stageinfinitegroup = json.load(file)
 
     main = challengestoryjson[str(pf_id)]
@@ -1459,13 +1278,13 @@ def dict_to_template(dictionary, template):
 
 def parse_target(target_id, story = False, boss = False):
     if story:
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeStoryTargetConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeStoryTargetConfig.json', 'r', encoding = 'utf-8') as file:
             targetconfig = json.load(file)
     elif boss:
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeBossTargetConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeBossTargetConfig.json', 'r', encoding = 'utf-8') as file:
             targetconfig = json.load(file)
     else:
-        with open(f'{MAPPED_EXCEL_PATH}/ChallengeTargetConfig.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ChallengeTargetConfig.json', 'r', encoding = 'utf-8') as file:
             targetconfig = json.load(file)
 
     target_string = targetconfig[target_id]['ChallengeTargetName']['TextMapEN']
@@ -1481,13 +1300,13 @@ def parse_target(target_id, story = False, boss = False):
 
 
 def parse_stage_infinite_group(wave):
-    with open(f'{MAPPED_EXCEL_PATH}/StageInfiniteWaveConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageInfiniteWaveConfig.json', 'r', encoding = 'utf-8') as file:
         stageinfinitewave = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/StageInfiniteMonsterGroup.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageInfiniteMonsterGroup.json', 'r', encoding = 'utf-8') as file:
         stageinfinitemonster = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
         monsterjson = json.load(file)
 
     mons_list = stageinfinitemonster[str(wave)]['MonsterList']
@@ -1531,7 +1350,7 @@ def parse_stage_infinite_group(wave):
 
 
 def get_mons_weak(mons_id):
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
         monsterjson = json.load(file)
 
     out = ''
@@ -1548,10 +1367,10 @@ def get_mons_weak(mons_id):
 
 
 def parse_fh_stage(stage_id):
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeMazeConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeMazeConfig.json', 'r', encoding = 'utf-8') as file:
         challengemazejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
         stagejson = json.load(file)
 
     main = challengemazejson[str(stage_id)]
@@ -1640,7 +1459,7 @@ def parse_fh_stage(stage_id):
 
 
 def parse_fh_event_id_list(idlist):
-    with open(f'{MAPPED_EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
         stagejson = json.load(file)
 
     b1w2 = ''
@@ -1679,7 +1498,7 @@ def parse_fh_event_id_list(idlist):
 
 
 def parse_monster_dict(monster_dict):
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterConfig.json', 'r', encoding = 'utf-8') as file:
         monsterjson = json.load(file)
 
     out = ''
@@ -1694,10 +1513,10 @@ def parse_monster_dict(monster_dict):
 def parse_char_asc():
     out_dict = {}
 
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarPromotionConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarPromotionConfig.json', 'r', encoding = 'utf-8') as file:
         promotejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarConfig.json', 'r', encoding = 'utf-8') as file:
         avatarjson = json.load(file)
 
     for key, value in promotejson.items():
@@ -1735,7 +1554,7 @@ def parse_char_asc():
         out_dict[name]['def'] = value['1']['DefenceBase']['Value']
         out_dict[name]['spd'] = value['1']['SpeedBase']['Value']
 
-    file_write_path =f'{OUT_PATH}/Character_Ascension_and_Stats_data.lua'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}/Character_Ascension_and_Stats_data.lua'
     file_write = (f"--[=[<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
                   f"important information of edit. This struct will be removed automatically after you push edits.#\n "
                   f"   pageTitle = #Module:Character Ascensions and Stats/data#\n    pageID = ##\n    revisionID = "
@@ -1748,10 +1567,10 @@ def parse_char_asc():
 def parse_trace_upgr():
     out_dict = {}
 
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarSkillTreeConfig-Mapped.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarSkillTreeConfig-Mapped.json', 'r', encoding = 'utf-8') as file:
         skilltree = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarConfig.json', 'r', encoding = 'utf-8') as file:
         avatarjson = json.load(file)
 
     for key, value in avatarjson.items():
@@ -1798,7 +1617,7 @@ def parse_trace_upgr():
         boss = skilltree[trace1]['1']['MaterialList'][2]['ItemName']['TextMapEN']
         out_dict[name]['boss'] = boss
 
-    file_write_path =f'{OUT_PATH}/Trace_Upgrades_data.lua'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}/Trace_Upgrades_data.lua'
     file_write = (f"--[=[<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
                   f"important information of edit. This struct will be removed automatically after you push edits.#\n "
                   f"   pageTitle = #Module:Trace Upgrades/data#\n    pageID = ##\n    revisionID = "
@@ -1811,10 +1630,10 @@ def parse_trace_upgr():
 def parse_lc_asc():
     out_dict = {}
 
-    with open(f'{MAPPED_EXCEL_PATH}/EquipmentPromotionConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/EquipmentPromotionConfig.json', 'r', encoding = 'utf-8') as file:
         promotejson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/EquipmentConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/EquipmentConfig.json', 'r', encoding = 'utf-8') as file:
         equipjson = json.load(file)
 
     for key, value in promotejson.items():
@@ -1842,7 +1661,7 @@ def parse_lc_asc():
         out_dict[name]['atk'] = value['1']['BaseAttack']['Value']
         out_dict[name]['def'] = value['1']['BaseDefence']['Value']
 
-    file_write_path =f'{OUT_PATH}Light_Cone_Ascension_and_Stats_data.lua'
+    file_write_path =f'{CONFIG.OUTPUT_PATH}Light_Cone_Ascension_and_Stats_data.lua'
     file_write = (f"--[=[<%-- [PAGE_INFO]\n    comment = #Please do not remove this struct. It's record contains some "
                   f"important information of edit. This struct will be removed automatically after you push edits.#\n "
                   f"   pageTitle = #Module:Light Cone Ascensions and Stats/data#\n    pageID = ##\n    revisionID = "
@@ -1860,7 +1679,7 @@ def preprocess_text(sec_id: int) -> list:
     start_ls = []
     end_ls = []
 
-    with open(f'{MAPPED_EXCEL_PATH}/MessageItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MessageItemConfig.json', 'r', encoding = 'utf-8') as file:
         msgitemjson = json.load(file)
 
     for msgitem in msgitemjson.values():
@@ -1885,7 +1704,7 @@ def preprocess_text(sec_id: int) -> list:
 def parse_text_sec(sec_id, char_name):
     out = ''
 
-    with open(f'{MAPPED_EXCEL_PATH}/MessageItemConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MessageItemConfig.json', 'r', encoding = 'utf-8') as file:
         msgitemjson = json.load(file)
 
     msgitem_id = str(sec_id) + '00'
@@ -1911,7 +1730,7 @@ def parse_text_sec(sec_id, char_name):
 
 
 def parse_char_text(char_name):
-    with open(f'{MAPPED_EXCEL_PATH}/MessageContactsConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MessageContactsConfig.json', 'r', encoding = 'utf-8') as file:
         contactjson = json.load(file)
 
     char_id = ''
@@ -1923,7 +1742,7 @@ def parse_char_text(char_name):
     # message groups
     message_sec_ids = []
 
-    with open(f'{MAPPED_EXCEL_PATH}/MessageGroupConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MessageGroupConfig.json', 'r', encoding = 'utf-8') as file:
         msggrpjson = json.load(file)
 
     for msggrp in msggrpjson.values():
@@ -1935,14 +1754,14 @@ def parse_char_text(char_name):
 
 
 def parse_technique_status():
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarMazeBuff.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarMazeBuff.json', 'r', encoding = 'utf-8') as file:
         mazebuffjson = json.load(file)
 
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarSkillConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarSkillConfig.json', 'r', encoding = 'utf-8') as file:
         avatarskilljson = json.load(file)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/Technique_Status_Output.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Technique_Status_Output.wikitext'
 
     for entry_id in mazebuffjson.values():
         entry = entry_id['1']
@@ -1963,11 +1782,11 @@ def parse_technique_status():
             skill_name = avatarskilljson[params_id]['1']['SkillName']['TextMapEN'].replace(' ', '_')
 
         # file
-        image = SPRITE_PATH + 'spriteoutput/bufficon/inlevel/avatar/' + entry.get('BuffIcon').split('/')[-1]
-        image_2 = SPRITE_PATH + 'spriteoutput/bufficon/inlevel/' + entry.get('BuffIcon').split('/')[-1]
+        image = CONFIG.IMAGE_PATH + '/spriteoutput/bufficon/inlevel/avatar/' + entry.get('BuffIcon').split('/')[-1]
+        image_2 = CONFIG.IMAGE_PATH + '/spriteoutput/bufficon/inlevel/' + entry.get('BuffIcon').split('/')[-1]
         image_name = f'Icon {name}.png'
         image_name_clean = image_name.replace(':', '')
-        dest_path = f'{OUT_PATH}/Technique_Status_Icons/{image_name_clean}'
+        dest_path = f'{CONFIG.OUTPUT_PATH}/Technique_Status_Icons/{image_name_clean}'
 
         if image_name != image_name_clean:
             file_redirect(image_name, image_name_clean)
@@ -2001,14 +1820,14 @@ def parse_technique_status():
     
 
 def parse_avatar_status():
-    with open(f'{MAPPED_EXCEL_PATH}/AvatarStatusConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarStatusConfig.json', 'r', encoding = 'utf-8') as file:
         mazebuffjson = json.load(file)
         
-    with open(f'{OLD_MAPPED_EXCEL_PATH}/AvatarStatusConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH_OLD}/AvatarStatusConfig.json', 'r', encoding = 'utf-8') as file:
         old_mazebuffjson = json.load(file)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/Avatar_Status_Output.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Avatar_Status_Output.wikitext'
 
     for key, entry in mazebuffjson.items():
         has_name = entry.get('StatusName')
@@ -2025,7 +1844,7 @@ def parse_avatar_status():
         desc = entry.get('StatusDesc').get('TextMapEN')
 
         # file
-        image = SPRITE_PATH + 'spriteoutput/bufficon/inlevel/avatar/' + entry.get('StatusIconPath').split('/')[-1]
+        image = CONFIG.IMAGE_PATH + '/spriteoutput/bufficon/inlevel/avatar/' + entry.get('StatusIconPath').split('/')[-1]
         
         if not re.findall(r'Icon\d\d\d\d', image):
             print(f'Skipped {name}. (No Unique Icon)')
@@ -2033,7 +1852,7 @@ def parse_avatar_status():
         
         image_name = f'Icon {name}.png'
         image_name_clean = image_name.replace(':', '').replace('?', '')
-        dest_path = f'{OUT_PATH}/Avatar_Status_Icons/{image_name_clean}'
+        dest_path = f'{CONFIG.OUTPUT_PATH}/Avatar_Status_Icons/{image_name_clean}'
 
         if image_name != image_name_clean:
             file_redirect(image_name, image_name_clean)
@@ -2064,14 +1883,14 @@ def parse_avatar_status():
     
     
 def parse_monster_status():
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterStatusConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterStatusConfig.json', 'r', encoding = 'utf-8') as file:
         mazebuffjson = json.load(file)
         
     with open('D:/HSR/0 - Data/StarRailBetaData-master 2.3/StarRailExcelMap/OutputEN/MonsterStatusConfig.json', 'r', encoding = 'utf-8') as file:
         old_mazebuffjson = json.load(file)
 
     file_write = ''
-    file_write_path = f'{OUT_PATH}/Monster_Status_Output.wikitext'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Monster_Status_Output.wikitext'
 
     for key, entry in mazebuffjson.items():
         name = entry.get('StatusName').get('TextMapEN')
@@ -2086,11 +1905,11 @@ def parse_monster_status():
         desc = entry.get('StatusDesc').get('TextMapEN')
 
         # file
-        image = SPRITE_PATH + 'spriteoutput/bufficon/inlevel/' + entry.get('StatusIconPath').split('/')[-1]
+        image = CONFIG.IMAGE_PATH + '/spriteoutput/bufficon/inlevel/' + entry.get('StatusIconPath').split('/')[-1]
         
         image_name = f'Icon {name}.png'
         image_name_clean = image_name.replace(':', '').replace('?', '')
-        dest_path = f'{OUT_PATH}/Monster_Status_Icons/{image_name_clean}'
+        dest_path = f'{CONFIG.OUTPUT_PATH}/Monster_Status_Icons/{image_name_clean}'
 
         if image_name != image_name_clean:
             file_redirect(image_name, image_name_clean)
@@ -2121,13 +1940,15 @@ def parse_monster_status():
     
 
 def parse_apoc_shadow(id):
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeBossGroupConfig.json', 'r', encoding = 'utf-8') as file:
+    ol.load_data()
+    
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeBossGroupConfig.json', 'r', encoding = 'utf-8') as file:
         groupjson = json.load(file)
         
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeBossMazeConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeBossMazeConfig.json', 'r', encoding = 'utf-8') as file:
         mazejson = json.load(file)
         
-    with open(f'{MAPPED_EXCEL_PATH}/ChallengeBossGroupExtra.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/ChallengeBossGroupExtra.json', 'r', encoding = 'utf-8') as file:
         extrajson = json.load(file)
 
     name = groupjson[id]['GroupName']['TextMapEN']
@@ -2200,13 +2021,13 @@ def parse_apoc_shadow(id):
     begin, end = parse_schedule(str(groupjson[id]['ScheduleDataID']))
     
     # ol
-    ol = gen_ol(name)
+    ol_text = ol.gen_ol(name)
     
     # phase icon
     icon = extrajson[str(id)].get('ThemeIconPicPath')
     
     if icon:
-        copy_file(f'{T2D_PATH}/{icon}', f'{OUT_PATH}/Images/{name}.png')
+        copy_file(f'{CONFIG.IMAGE_PATH}/{icon}', f'{CONFIG.OUTPUT_PATH}/Images/{name}.png')
     
     # output
     out = f"""<noinclude>
@@ -2260,7 +2081,7 @@ __TOC__
 }}}}
 <noinclude>
 ==Other Languages==
-{ol}
+{ol_text}
 ==Navigation==
 {{{{Endgame Navbox}}}}
 </noinclude>"""
@@ -2270,13 +2091,13 @@ __TOC__
     
 
 def monster_tags_from_stage(id, monsindex = 0):
-    with open(f'{MAPPED_EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/StageConfig.json', 'r', encoding = 'utf-8') as file:
         stagejson = json.load(file)
     
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterGuideConfig.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterGuideConfig.json', 'r', encoding = 'utf-8') as file:
         guidejson = json.load(file)
         
-    with open(f'{MAPPED_EXCEL_PATH}/MonsterGuideTag.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MonsterGuideTag.json', 'r', encoding = 'utf-8') as file:
         tagjson = json.load(file)
         
     mons_id = stagejson[str(id)]['MonsterList'][0][f'Monster{monsindex}']
@@ -2299,14 +2120,14 @@ def monster_tags_from_stage(id, monsindex = 0):
 
 def parse_schedule(id, schedulejson: dict = None):
     if not schedulejson:
-        with open(f'{MAPPED_EXCEL_PATH}/ScheduleDataChallengeBoss.json', 'r', encoding = 'utf-8') as file:
+        with open(f'{CONFIG.EXCEL_PATH}/ScheduleDataChallengeBoss.json', 'r', encoding = 'utf-8') as file:
             schedulejson = json.load(file)
             
     return schedulejson[id]['BeginTime'].replace('-', '/'), schedulejson[id]['EndTime'].replace('-', '/')
     
 
 def parse_mazebuff(id):
-    with open(f'{MAPPED_EXCEL_PATH}/MazeBuff.json', 'r', encoding = 'utf-8') as file:
+    with open(f'{CONFIG.EXCEL_PATH}/MazeBuff.json', 'r', encoding = 'utf-8') as file:
         mazebuffjson = json.load(file)
         
     desc = mazebuffjson[id]['1']['BuffDesc']['TextMapEN']
@@ -2317,58 +2138,15 @@ def parse_mazebuff(id):
     icon = mazebuffjson[id]['1'].get('BuffIcon')
     
     if icon and icon != 'SpriteOutput/BuffIcon/Inlevel/IconBuffCommon.png':
-        copy_file(f'{T2D_PATH}/{icon}', f'{OUT_PATH}/Images/Icon {name}.png')
+        copy_file(f'{CONFIG.IMAGE_PATH}/{icon}', f'{CONFIG.OUTPUT_PATH}/Images/Icon {name}.png')
         
     
     return name, parse_params(desc, params)
  
 
 def copy_ol(input):
-    pyperclip.copy(gen_ol(input))
-    
-
-def redirects_from_str():
-    redirects = r"""Ruler of the Chizhang Mountains: Yiji%%%Geovishap
-Ruler of the Chizhang Mountains: Tianyu%%%Geovishap
-Dobharcu, Lord of the Hidden%%%Blubberbeast
-Fading Veteran%%%Blubberbeast
-Angelica, Fairy Knight Twin%%%Hunter's Ray
-Medoro, Fairy Knight Twin%%%Hunter's Ray
-Murgleis, Sword of the Gorge%%%Hunter's Ray
-Cortana, Sword of the Gorge%%%Hunter's Ray
-Iron Viscount%%%Sternshield Crab
-Ocean Circuit Judge%%%Sternshield Crab
-Luachra the Brilliant%%%Cherubic Sea Hare
-Chassanion%%%Hat Jellyfish
-Mageblade Corrouge%%%Hat Jellyfish
-Ninianne of the Lake%%%Tainted Water-Splitting Phantasm
-Vivianne of the Lake%%%Tainted Water-Spouting Phantasm
-Yseut%%%Frost Operative
-Deianeira of Snezhevna%%%Wind Operative
-Automated Supercomputing Field Generator%%%Arithmetic Enhancer Mek
-Cineas%%%Primordial Bathysmal Vishap
-"Bronzelock"%%%Ruin Drake: Earthguard
-"He Never Dies"%%%"He Never Dies"
-"Ichcahuipilli's Aegis"%%%Foliar-Swift Wayob Manifestation
-"Atlatl's Blessing"%%%Rock-Cavernous Wayob Manifestation
-Ciuhacoatl of Chimeric Bone%%%Yumkasaurus Warrior: Flowing Skyfire
-"Tlatzacuilotl"%%%Tepetlisaurus Warrior: Rockbreaker Blade
-"Chimalli's Shade"%%%Flow-Inverted Wayob Manifestation
-"Potapo's Solidarity"%%%Biting-Cold Wayob Manifestation
-"Sappho Amidst the Waves"%%%Koholasaurus Warrior: Waveshuttler
-"Tupayo's Aid"%%%Burning-Aflame Wayob Manifestation
-"Spirit of the Fallen Dawnstar"%%%Iktomisaurus
-Polychrome Tri-Stars: Vasily%%%Fatui Skirmisher - Pyroslinger Bracer
-Polychrome Tri-Stars: Sidorenko%%%Fatui Skirmisher - Cryogunner Legionnaire
-Polychrome Tri-Stars: Nomokonov%%%Fatui Skirmisher - Electrohammer Vanguard
-"Balachko"%%%Fatui Pyro Agent
-Ironbeard%%%Qucusaurus Warrior: Heartstar Hammer
-Rilai%%%Iktomisaurus Warrior: Cryocrystal Cannon"""
-
-    for line in redirects.split("\n"):
-        pagename, target = line.split(r"%%%")
-        
-        main_redirect(target, pagename)
+    ol.load_data()
+    pyperclip.copy(ol.gen_ol(input))
 
 
 #########################################################################
@@ -2407,8 +2185,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not os.path.exists(f'{OUT_PATH}'):
-        os.makedirs(f'{OUT_PATH}')
+    if not os.path.exists(f'{CONFIG.OUTPUT_PATH}'):
+        os.makedirs(f'{CONFIG.OUTPUT_PATH}')
 
     if args.curio:
         parse_curio()
@@ -2494,4 +2272,5 @@ if __name__ == '__main__':
         parse_apoc_shadow(args.apocshadow)
         
     if args.redirectfromstr:
-        redirects_from_str()
+        from utils.redirect import redirects_from_str
+        redirects_from_str(args.redirectfromstr)
