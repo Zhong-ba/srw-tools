@@ -121,6 +121,7 @@ def parse_pure_fiction_main(pf_id, fh = False):
         ol_text = ol.gen_ol(periodname)
         
         file_write = f'''{{{{Forgotten Hall Version
+|image             = Event Memory of Chaos {periodname}.png
 |time_start        = {starttime}
 |time_end          = {endtime}
 |prev              = 
@@ -281,7 +282,10 @@ def parse_pure_fiction_main_v2(pf_id, fh = False):
     
     file_write = f'''<noinclude>
 {{{{Pure Fiction Version
-|image             = {periodname}.png
+|image             = <gallery>
+Event Pure Fiction {periodname}.png|Banner
+{periodname}.png|Icon
+</gallery>
 |time_start        = {begin}
 |time_end          = {end}
 |prev              = 
@@ -685,7 +689,10 @@ def parse_apoc_shadow(id):
     # output
     out = f"""<noinclude>
 {{{{Apocalyptic Shadow Version
-|image             = {name}.png
+|image             = <gallery>
+Event Apocalyptic Shadow {name}.png|Banner
+{name}.png|Icon
+</gallery>
 |time_start        = {begin}
 |time_end          = {end}
 |prev              = 
@@ -752,8 +759,12 @@ def monster_tags_from_stage(id, monsindex = 0):
         
     with open(f'{CONFIG.EXCEL_PATH}/MonsterGuideTag.json', 'r', encoding = 'utf-8') as file:
         tagjson = json.load(file)
-        
+    
     mons_id = stagejson[str(id)]['MonsterList'][0][f'Monster{monsindex}']
+    # Feixiao
+    if mons_id == 203501201:
+        mons_id = 203302201
+    
     tags = guidejson[str(mons_id)]['TagList']
     
     out = []

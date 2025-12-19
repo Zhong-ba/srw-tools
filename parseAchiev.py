@@ -45,7 +45,10 @@ for item in achievementjson:
         hidedesc = ''
     
     if hidedesc != '':
-        extradesc = desc.split('<br />※')[1].strip()
+        if '<br />※' in desc:
+            extradesc = desc.split('<br />※')[1].strip()
+        elif '<br />' in desc:
+            extradesc = desc.split('<br />')[1].strip()
         desc = hidedesc
     else:
         extradesc = ''
@@ -92,7 +95,7 @@ for item in achievementjson:
     if not os.path.exists(directory_path):
         os.makedirs(directory_path)
     
-    file_write = f"{pageinfo(name)}\n{{{{Achievement Infobox\n|rarity           = {rarity}\n|title            = {{{{subst:#titleparts:{{{{subst:PAGENAME}}}}}}}}\n|category         = {series}\n|description      = {desc}\n|extraDescription = {extradesc}\n|hidden           = {hidden}\n|mission          = \n|topic            = \n}}}}\n'''{{{{subst:#titleparts:{{{{subst:PAGENAME}}}}}}}}''' is an [[Achievement]] in the category [[{series}]].\n\nTo unlock this achievement, the player must {lowerdesc}\n<!--\n==Gameplay Notes==\n\n==Trivia==\n*\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{version}}}}}\n\n==Navigation==\n{{{{Achievement Navbox}}}}\n"
+    file_write = f"{pageinfo(name)}\n{{{{Achievement Infobox\n|rarity           = {rarity}\n|title            = {name}\n|category         = {series}\n|description      = {desc}\n|extraDescription = {extradesc}\n|hidden           = {hidden}\n|mission          = \n|topic            = \n}}}}\n'''{name}''' is an [[Achievement]] in the category [[{series}]].\n\nTo unlock this achievement, the player must {lowerdesc}\n<!--\n==Gameplay Notes==\n\n==Trivia==\n*\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{version}}}}}\n\n==Navigation==\n{{{{Achievement Navbox}}}}\n"
 
     write_file(file_write_path, file_write)
 

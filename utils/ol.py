@@ -36,8 +36,12 @@ def gen_ol(text):
     for item in data['EN']:
         if (data['EN'][item]) == text:
             textId_list.append(item)
-    textId = textId_list[0]
-    
+    try:
+        textId = textId_list[0]
+    except Exception as e:
+        print(f"Error while generating OL for text: {text}. Error: {str(e)}")
+        return
+
     for lang in langs:
         textdata[lang] = data[lang].get(textId, '')
         

@@ -6,6 +6,8 @@ from getConfig import CONFIG
 JSON_NAMES = [
     'AvatarSkillTreeConfig',
     'AvatarRankConfig',
+    'AvatarSkillTreeConfigLD',
+    'AvatarRankConfigLD',
 ]
 
 def get_stable_hash(s: str):

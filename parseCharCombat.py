@@ -9,7 +9,7 @@ from utils.misc import autoround, convertwhole, copy_icon, parse_extraeffect
 from utils.pageinfo import pageinfo
 from getConfig import CONFIG
 
-BUFFED_PREFIX = 'buffed_'
+BUFFED_PREFIX = 'enh_'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--id', type=int)
@@ -19,6 +19,7 @@ parser.add_argument('--stype', type=str)
 parser.add_argument('--sname', type=str)"""
 parser.add_argument('--files', type=bool)
 parser.add_argument('--enhanced', type=bool)
+parser.add_argument('--special', type=str)
 
 args = parser.parse_args()
 
@@ -28,7 +29,8 @@ ver = str(args.ver)
 specify_type = str(args.stype)
 specify_name = str(args.sname)"""
 files = str(args.files)
-ability_list = [['01', 'Basic_ATK_1'], ['02', 'Skill'], ['03', 'Ultimate'], ['04', 'Talent'], ['07', 'Technique'], ['08', 'Basic_ATK_2'], ['09', 'Skill_2'], ['11', 'Skill_3'], ['18', 'Path_Resonance']]
+special = args.special or ''
+ability_list = [['01', 'Basic_ATK_1'], ['02', 'Skill'], ['03', 'Ultimate'], ['04', 'Talent'], ['05', 'Talent_2'], ['07', 'Technique'], ['08', 'Basic_ATK_2'], ['09', 'Skill_2'], ['11', 'Skill_3'], ['14', 'Ultimate_2'], ['18', 'Path_Resonance']]
 trace_list = [['101', 'A2'], ['102', 'A4'], ['103', 'A6']]
 eidolon_list = [['01', 'E1'], ['02', 'E2'], ['03', 'E3'], ['04', 'E4'], ['05', 'E5'], ['06', 'E6']]
 
@@ -38,7 +40,7 @@ ol.load_data()
 
 
 def parseSkill(id, ver):
-    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarSkillConfig.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarSkillConfig{special}.json', 'r', encoding='utf-8') as file:
         avatarskillconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     levels = len(avatarskillconfig[id])
@@ -82,7 +84,7 @@ def parseSkill(id, ver):
         levels = []
         for level in range(1, level_possible):
             if f'{i + 1}[i]%' in desc or f'{i + 1}[f1]%' in desc:
-                levels.append(str(autoround(avatarskillconfig[id][str(level)]['ParamList'][i]['Value'] * 100)) + '%')
+                levels.append(str(convertwhole(autoround(avatarskillconfig[id][str(level)]['ParamList'][i]['Value'] * 100))) + '%')
             else:
                 levels.append(str(avatarskillconfig[id][str(level)]['ParamList'][i]['Value']))
         
@@ -141,16 +143,20 @@ def parseSkill(id, ver):
                     f"==Navigation==\n{{{{Ability Navbox}}}}")
     
     if args.enhanced:
-        page_content = (f"|{BUFFED_PREFIX}type       = {type}\n|{BUFFED_PREFIX}tag        "
-                        f"= {tag}\n|{BUFFED_PREFIX}toughdmg   = {toughdmg_output}\n|{BUFFED_PREFIX}energyGen  = {energyGen}\n|{BUFFED_PREFIX}energyCost = {energyCost}"
-                        f"\n|{BUFFED_PREFIX}duration   = \n|{BUFFED_PREFIX}desc       = {desc}\n|{BUFFED_PREFIX}utility1   = \n|{BUFFED_PREFIX}scale_att1 = \n"
-                        f"\n{param_table}")
+        page_content = (f"{pageinfo(name + '/Enhanced')}\n{{{{Ability Infobox\n|enhanced   = 1\n|title      = {name}\n|image"
+                        f"      = Ability {name}.png\n|character  = {character}\n|type       = {type}\n|tag        "
+                        f"= {tag}\n|toughdmg   = {toughdmg_output}\n|energyGen  = {energyGen}\n|energyCost = {energyCost}"
+                        f"\n|duration   = \n|desc       = {desc}\n|utility1   = \n|scale_att1 = \n}}}}\n'''{name}''' is"
+                        f" [[{character}]]'s [[{type}]].\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n{{{{Preview\n"
+                        f"|file = {name} Preview\n}}}}\n-->{param_table}"
+                        f"\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n"
+                        f"==Navigation==\n{{{{Ability Navbox}}}}")
     
     return(page_content)
 
 
 def parseTrace(id, ver):
-    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarSkillTreeConfig-Mapped.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarSkillTreeConfig{special}-Mapped.json', 'r', encoding='utf-8') as file:
         skilltreeconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     name = skilltreeconfig[id]['1']['PointName']
@@ -185,16 +191,15 @@ def parseTrace(id, ver):
     if extraeffect_idlist:
         desc = parse_extraeffect(desc, extraeffect_idlist)
     
-    page_content = f"{pageinfo(name)}\n{{{{Ability Infobox\n|title      = {name}\n|image      = Trace {name}.png\n|character  = {character}\n|type       = Bonus Ability\n|reqAsc     = {ascension}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = \n}}}}\n'''{{{{subst:PAGENAME}}}}''' is one of [[{character}]]'s [[Bonus Abilities]].\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
+    page_content = f"{pageinfo(name)}\n{{{{Ability Infobox\n|title      = {name}\n|image      = Trace {name}.png\n|character  = {character}\n|type       = Bonus Ability\n|reqAsc     = {ascension}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = \n}}}}\n'''{name}''' is one of [[{character}]]'s [[Bonus Abilities]].\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
     
     if args.enhanced:
-        page_content = (f"|{BUFFED_PREFIX}type       = Bonus Ability\n|{BUFFED_PREFIX}reqAsc     = {ascension}\n"
-                        f"|{BUFFED_PREFIX}duration   = \n|{BUFFED_PREFIX}desc       = {desc}\n|{BUFFED_PREFIX}utility1   = \n|{BUFFED_PREFIX}scale_att1 = \n")
+        page_content = f"{pageinfo(name + '/Enhanced')}\n{{{{Ability Infobox\n|enhanced   = 1\n|title      = {name}\n|image      = Trace {name}.png\n|character  = {character}\n|type       = Bonus Ability\n|reqAsc     = {ascension}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = \n}}}}\n'''{name}''' is one of [[{character}]]'s [[Bonus Abilities]].\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
     
     return(page_content)
 
 def parseEidolon(id, ver):
-    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarRankConfig-Mapped.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarRankConfig{special}-Mapped.json', 'r', encoding='utf-8') as file:
         rankconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     name = rankconfig[id]['Name']
@@ -204,8 +209,12 @@ def parseEidolon(id, ver):
     if args.enhanced:
         original_id = id[1:]
         original_desc = rankconfig[original_id]['Desc']
-        if original_desc == desc:
-            print(f'Enhanced eidolon {id} has the same description as original eidolon {original_id}. Skipping.')
+        
+        original_params = rankconfig[original_id]['Param']
+        new_params = rankconfig[id]['Param']
+        
+        if original_desc == desc and original_params == new_params:
+            print(f'Enhanced eidolon {id} has the same description and params as original eidolon {original_id}. Skipping.')
             return
     
     if files:
@@ -252,14 +261,13 @@ def parseEidolon(id, ver):
     page_content = f"{pageinfo(name)}\n{{{{Eidolon Infobox\n|title      = {name}\n|image      = Eidolon {name}.png\n|character  = {character}\n|level      = {rank}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = {utility[0]}\n|utility2   = {utility[1]}\n}}}}\n'''{name}''' is [[{character}]]'s Level {rank} Eidolon.\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
     
     if args.enhanced:
-        page_content = (f"|{BUFFED_PREFIX}level      = {rank}\n|{BUFFED_PREFIX}duration   = \n|{BUFFED_PREFIX}desc       = {desc}\n"
-                        f"|{BUFFED_PREFIX}utility1   = {utility[0]}\n|{BUFFED_PREFIX}utility2   = {utility[1]}\n")
+        page_content = f"{pageinfo(name + '/Enhanced')}\n{{{{Eidolon Infobox\n|enhanced   = 1\n|title      = {name}\n|image      = Eidolon {name}.png\n|character  = {character}\n|level      = {rank}\n|duration   = \n|desc       = {desc}\n|scale_att1 = \n|utility1   = {utility[0]}\n|utility2   = {utility[1]}\n}}}}\n'''{name}''' is [[{character}]]'s Level {rank} Eidolon.\n<!--\n==Gameplay Notes==\n--><!--\n==Preview==\n-->\n==Other Languages==\n{OLtext}\n==Change History==\n{{{{Change History|{ver}}}}}\n\n==Navigation==\n{{{{Ability Navbox}}}}"
     
     return(page_content)
 
 
 def parseServantSkill(id, ver):
-    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarServantSkillConfig.json', 'r', encoding='utf-8') as file:
+    with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarServantSkillConfig{special}.json', 'r', encoding='utf-8') as file:
         servantskillconfig = json.load(file)
     character = avatarconfig[str(args.id)[:4]]['AvatarName']['TextMapEN']
     levels = len(servantskillconfig[id])
@@ -423,7 +431,7 @@ def parseGlobal(id, ver):
     return(page_content)
 
 
-with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarConfig.json', 'r', encoding='utf-8') as file:
+with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarConfig{special}.json', 'r', encoding='utf-8') as file:
     avatarconfig = json.load(file)
         
 if not char_id == "None":
@@ -480,7 +488,7 @@ if not char_id == "None":
         
         servant_id = f'1{char_id}'
         
-        with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarServantConfig.json', 'r', encoding='utf-8') as file:
+        with open(f'{CONFIG.DATA_PATH}/MappedExcelOutput_EN/AvatarServantConfig{special}.json', 'r', encoding='utf-8') as file:
             servantconfig = json.load(file)
 
         servant = servantconfig[servant_id]

@@ -10,9 +10,15 @@ def parse_char_asc():
 
     with open(f'{CONFIG.EXCEL_PATH}/AvatarPromotionConfig.json', 'r', encoding = 'utf-8') as file:
         promotejson = json.load(file)
+        
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarPromotionConfigLD.json', 'r', encoding = 'utf-8') as file:
+        promotejson.update(json.load(file))
 
     with open(f'{CONFIG.EXCEL_PATH}/AvatarConfig.json', 'r', encoding = 'utf-8') as file:
         avatarjson = json.load(file)
+        
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarConfigLD.json', 'r', encoding = 'utf-8') as file:
+        avatarjson.update(json.load(file))
 
     for key, value in promotejson.items():
         if key in ['8003', '8004']:
@@ -61,12 +67,28 @@ def parse_char_asc():
 
 def parse_trace_upgr():
     out_dict = {}
+    paths = {
+        'Warrior': 'Destruction',
+        'Rogue': 'The Hunt',
+        'Mage': 'Erudition',
+        'Shaman': 'Harmony',
+        'Warlock': 'Nihility',
+        'Knight': 'Preservation',
+        'Priest': 'Abundance',
+        'Memory': 'Remembrance',
+    }
 
     with open(f'{CONFIG.EXCEL_PATH}/AvatarSkillTreeConfig-Mapped.json', 'r', encoding = 'utf-8') as file:
         skilltree = json.load(file)
+        
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarSkillTreeConfigLD-Mapped.json', 'r', encoding = 'utf-8') as file:
+        skilltree.update(json.load(file))
 
     with open(f'{CONFIG.EXCEL_PATH}/AvatarConfig.json', 'r', encoding = 'utf-8') as file:
         avatarjson = json.load(file)
+        
+    with open(f'{CONFIG.EXCEL_PATH}/AvatarConfigLD.json', 'r', encoding = 'utf-8') as file:
+        avatarjson.update(json.load(file))
 
     for key, value in avatarjson.items():
         if key in ['8003', '8004']:
@@ -84,6 +106,9 @@ def parse_trace_upgr():
         else:
             name = value['AvatarName']['TextMapEN']
         out_dict[name] = {}
+        
+        path = paths.get(value['AvatarBaseType'])
+        out_dict[name]['path'] = path
 
         rarity = int(value['Rarity'][-1:])
         out_dict[name]['rarity'] = rarity

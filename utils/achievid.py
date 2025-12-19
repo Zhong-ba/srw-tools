@@ -8,7 +8,7 @@ def parse_achiev_id():
     with open(f'{CONFIG.EXCEL_PATH}/AchievementData.json', 'r', encoding = 'utf-8') as file:
         achievementjson = json.load(file)
 
-    file_write_path = f'{CONFIG.OUTPUT_PATH}/Achievments/Achiev_ID_Output.lua'
+    file_write_path = f'{CONFIG.OUTPUT_PATH}/Achievements/Achiev_ID_Output.lua'
 
     achiev_dict = {}
 

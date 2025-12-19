@@ -8,7 +8,7 @@ from getConfig import CONFIG
 
 
 def copy_icon(source, name, folder):
-    file_name_clean = name.replace(":", "").replace("/", "").replace("\"", "")
+    file_name_clean = name.replace(":", "").replace("/", "").replace("\"", "").replace("?", "")
     
     if file_name_clean != name:
         file_redirect(name, file_name_clean)
